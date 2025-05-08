@@ -14,7 +14,8 @@ public class Main {
                 break;
             }
             if(input.contains("echo")){
-                System.out.println(input);
+                String result = input.replace("echo","");
+                System.out.println(result);
             }else{
                 System.out.println(input + ": command not found");
             }
