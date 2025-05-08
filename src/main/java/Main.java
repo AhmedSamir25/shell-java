@@ -14,8 +14,15 @@ public class Main {
                 break;
             }
             if(input.contains("echo")){
-                String result = input.replace("echo","");
+                String[] words = input.split(" ");
+                StringJoiner result = new StringJoiner(" ");
+                for (String word : words){
+                    if(!word.equals("echo")){
+                        result.add(word);
+                    }
+                }
                 System.out.println(result);
+                break;
             }else{
                 System.out.println(input + ": command not found");
             }
