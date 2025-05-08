@@ -23,7 +23,7 @@ public class Main {
                     }
                 }
                 System.out.println(result);
-                break;
+               
             }else{
                 System.out.println(input + ": command not found");
             }
