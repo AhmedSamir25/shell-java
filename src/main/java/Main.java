@@ -5,7 +5,7 @@ import java.util.Arrays;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = {"echo", "exit"};
+        String[] shellType = {"echo", "exit","type"};
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
