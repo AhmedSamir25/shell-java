@@ -1,6 +1,7 @@
 import java.util.Scanner;
 import java.util.StringJoiner;
 import java.util.Arrays;
+import java.io.File;
 
 public class Main {
 
@@ -27,7 +28,22 @@ public class Main {
                     if (Arrays.asList(shellType).contains(command)) {
                         System.out.println(command + " is a shell builtin");
                     } else {
-                        System.out.println(command + ": not found");
+                        String pathEnv = System.getenv("PATH");
+                        String[] paths = pathEnv.split(":");
+                        boolean found = false;
+
+                        for (String path : paths) {
+                            File file = new File(path, command);
+                            if (file.exists() && file.canExecute()) {
+                                System.out.println(command + " is " + file.getAbsolutePath());
+                                found = true;
+                                break;
+                            }
+                        }
+
+                        if (!found) {
+                            System.out.println(command + ": not found");
+                        }
                     }
                 } else {
                     System.out.println("Usage: type [command]");
