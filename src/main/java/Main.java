@@ -52,7 +52,7 @@ public class Main {
             String executablePath = findExecutableInPath(command);
             if (executablePath != null) {
                 List<String> fullCommand = new ArrayList<>();
-                fullCommand.add(executablePath);
+                fullCommand.add(command);
                 fullCommand.addAll(Arrays.asList(arguments));
 
                 try {
