@@ -51,6 +51,7 @@ public class Main {
 
             if (command.equals("pwd")) {
                 System.out.println(System.getProperty("user.dir"));
+                continue;
             }
 
             String executablePath = findExecutableInPath(command);
