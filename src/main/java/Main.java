@@ -5,7 +5,7 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = {"echo", "exit", "type"};
+        String[] shellType = {"echo", "exit", "type","pwd"};
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
@@ -47,6 +47,12 @@ public class Main {
             if (command.equals("echo")) {
                 System.out.println(String.join(" ", arguments));
                 continue;
+            }
+
+            if (command.equals("pwd")) {
+                System.out.println(
+                        "Working Directory = " + System.getProperty("user.dir")
+                );
             }
 
             String executablePath = findExecutableInPath(command);
