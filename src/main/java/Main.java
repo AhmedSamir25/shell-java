@@ -5,7 +5,7 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = {"echo", "exit", "type","pwd"};
+        String[] shellType = {"echo", "exit", "type","pwd","cd"};
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
@@ -51,6 +51,17 @@ public class Main {
 
             if (command.equals("pwd")) {
                 System.out.println(System.getProperty("user.dir"));
+                continue;
+            }
+            if (command.equals("cd")) {
+                String path = String.join(" ", arguments);
+                File dir = new File(path);
+
+                if (dir.exists() && dir.isDirectory()) {
+                    System.setProperty("user.dir", dir.getAbsolutePath());
+                } else {
+                    System.out.println(path + ": No such file or directory");
+                }
                 continue;
             }
 
