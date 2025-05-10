@@ -7,11 +7,12 @@ public class Main {
     public static void main(String[] args) throws Exception {
         String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
         Scanner scanner = new Scanner(System.in);
-        String currentDir = System.getProperty("user.dir");
-
+        File currentDir = new File(System.getProperty("user.dir"));
         while (true) {
             System.out.print("$ ");
-            if (!scanner.hasNextLine()) break;
+            if (!scanner.hasNextLine()) {
+                break;
+            }
 
             String input = scanner.nextLine().trim();
             if (input.isEmpty()) continue;
@@ -47,39 +48,39 @@ public class Main {
             }
 
             if (command.equals("pwd")) {
-                System.out.println(currentDir);
+                System.out.println(currentDir.getAbsolutePath());
                 continue;
             }
 
             if (command.equals("cd")) {
-                if (arguments.length == 0 || arguments[0].equals("~")) {
-                    currentDir = System.getProperty("user.home");
-                } else if (arguments[0].equals("..")) {
-                    File parent = new File(currentDir).getParentFile();
-                    if (parent != null) {
-                        currentDir = parent.getAbsolutePath();
-                    } else {
-                        System.out.println("Already at root directory");
-                    }
+                if (arguments.length == 0) {
+                    currentDir = new File(System.getProperty("user.home"));
+                    continue;
+                }
+
+                String path = String.join(" ", arguments);
+                File targetDir = new File(path);
+
+                if (!targetDir.isAbsolute()) {
+                    targetDir = new File(currentDir, path);
+                }
+
+                if (targetDir.exists() && targetDir.isDirectory()) {
+                    currentDir = targetDir.getCanonicalFile();
                 } else {
-                    String path = arguments[0];
-                    File newDir = new File(currentDir, path);
-                    if (newDir.exists() && newDir.isDirectory()) {
-                        currentDir = newDir.getAbsolutePath();
-                    }
+                    System.out.println(path + ": No such file or directory");
                 }
                 continue;
             }
-
             String executablePath = findExecutableInPath(command);
             if (executablePath != null) {
                 List<String> fullCommand = new ArrayList<>();
-                fullCommand.add(executablePath);
+                fullCommand.add(command);
                 fullCommand.addAll(Arrays.asList(arguments));
 
                 try {
                     ProcessBuilder builder = new ProcessBuilder(fullCommand);
-                    builder.directory(new File(currentDir));
+                    builder.directory(currentDir); // هذا هو الأهم
                     builder.redirectErrorStream(true);
                     Process process = builder.start();
 
@@ -97,9 +98,6 @@ public class Main {
                 System.out.println(command + ": command not found");
             }
         }
-
-        scanner.close();
-        System.out.println("Goodbye!");
     }
 
     private static String findExecutableInPath(String command) {
