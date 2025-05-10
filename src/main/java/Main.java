@@ -66,10 +66,6 @@ public class Main {
                     File newDir = new File(currentDir, path);
                     if (newDir.exists() && newDir.isDirectory()) {
                         currentDir = newDir.getAbsolutePath();
-                    } else {
-                        System.out.println(
-                            path + ": No such file or directory"
-                        );
                     }
                 }
                 continue;
