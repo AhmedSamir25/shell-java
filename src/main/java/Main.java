@@ -5,14 +5,13 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = {"echo", "exit", "type","pwd","cd"};
+        String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
         Scanner scanner = new Scanner(System.in);
+        String currentDir = System.getProperty("user.dir");
 
         while (true) {
             System.out.print("$ ");
-            if (!scanner.hasNextLine()) {
-                break;
-            }
+            if (!scanner.hasNextLine()) break;
 
             String input = scanner.nextLine().trim();
             if (input.isEmpty()) continue;
@@ -21,9 +20,7 @@ public class Main {
             String command = parts[0];
             String[] arguments = Arrays.copyOfRange(parts, 1, parts.length);
 
-            if (input.equals("exit 0")) {
-                break;
-            }
+            if (input.equals("exit 0")) break;
 
             if (command.equals("type")) {
                 if (arguments.length == 0) {
@@ -50,17 +47,30 @@ public class Main {
             }
 
             if (command.equals("pwd")) {
-                System.out.println(System.getProperty("user.dir"));
+                System.out.println(currentDir);
                 continue;
             }
-            if (command.equals("cd")) {
-                String path = String.join(" ", arguments);
-                File dir = new File(path);
 
-                if (dir.exists() && dir.isDirectory()) {
-                    System.setProperty("user.dir", dir.getAbsolutePath());
+            if (command.equals("cd")) {
+                if (arguments.length == 0 || arguments[0].equals("~")) {
+                    currentDir = System.getProperty("user.home");
+                } else if (arguments[0].equals("..")) {
+                    File parent = new File(currentDir).getParentFile();
+                    if (parent != null) {
+                        currentDir = parent.getAbsolutePath();
+                    } else {
+                        System.out.println("Already at root directory");
+                    }
                 } else {
-                    System.out.println(path + ": No such file or directory");
+                    String path = arguments[0];
+                    File newDir = new File(currentDir, path);
+                    if (newDir.exists() && newDir.isDirectory()) {
+                        currentDir = newDir.getAbsolutePath();
+                    } else {
+                        System.out.println(
+                            path + ": No such file or directory"
+                        );
+                    }
                 }
                 continue;
             }
@@ -68,15 +78,18 @@ public class Main {
             String executablePath = findExecutableInPath(command);
             if (executablePath != null) {
                 List<String> fullCommand = new ArrayList<>();
-                fullCommand.add(command);
+                fullCommand.add(executablePath);
                 fullCommand.addAll(Arrays.asList(arguments));
 
                 try {
                     ProcessBuilder builder = new ProcessBuilder(fullCommand);
+                    builder.directory(new File(currentDir));
                     builder.redirectErrorStream(true);
                     Process process = builder.start();
 
-                    Scanner outputScanner = new Scanner(process.getInputStream());
+                    Scanner outputScanner = new Scanner(
+                        process.getInputStream()
+                    );
                     while (outputScanner.hasNextLine()) {
                         System.out.println(outputScanner.nextLine());
                     }
@@ -88,6 +101,9 @@ public class Main {
                 System.out.println(command + ": command not found");
             }
         }
+
+        scanner.close();
+        System.out.println("Goodbye!");
     }
 
     private static String findExecutableInPath(String command) {
