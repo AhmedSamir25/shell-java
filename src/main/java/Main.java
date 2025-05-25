@@ -46,8 +46,10 @@ public class Main {
                 String text = String.join(" ", arguments);
                 if (text.startsWith("'") && text.endsWith("'")){
                     System.out.println(text.replaceAll("'",""));
-                }else {
+                }else if (text.startsWith("\"") && text.endsWith("\"")){
                     System.out.println(text);
+                }else{
+                    System.out.println("\""+text+"\"");
                 }
                 continue;
             }
