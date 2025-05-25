@@ -53,7 +53,7 @@ public class Main {
             }
 
             if (command.equals("cd")) {
-                if (arguments.length == 0) {
+                if (arguments.length == 0 || arguments[0].equals("~")) {
                     currentDir = new File(System.getProperty("user.home"));
                     continue;
                 }
