@@ -54,7 +54,8 @@ public class Main {
 
             if (command.equals("cd")) {
                 if(arguments[0].equals("~")){
-                    currentDir = new File("/tmp/mango/apple/mango");
+                    String homePath = System.getenv("HOME");
+                    currentDir = new File(homePath);
                     continue;
                 }
                 if (arguments.length == 0 ) {
