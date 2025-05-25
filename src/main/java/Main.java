@@ -8,6 +8,7 @@ public class Main {
         String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
         Scanner scanner = new Scanner(System.in);
         File currentDir = new File(System.getProperty("user.dir"));
+
         while (true) {
             System.out.print("$ ");
             if (!scanner.hasNextLine()) {
@@ -17,9 +18,11 @@ public class Main {
             String input = scanner.nextLine().trim();
             if (input.isEmpty()) continue;
 
-            String[] parts = input.split(" ");
-            String command = parts[0];
-            String[] arguments = Arrays.copyOfRange(parts, 1, parts.length);
+            List<String> partsList = tokenize(input);
+            if (partsList.isEmpty()) continue;
+
+            String command = partsList.get(0);
+            String[] arguments = partsList.subList(1, partsList.size()).toArray(new String[0]);
 
             if (input.equals("exit 0")) break;
 
@@ -44,11 +47,9 @@ public class Main {
 
             if (command.equals("echo")) {
                 String text = String.join(" ", arguments);
-                if (text.startsWith("'") && text.endsWith("'")){
-                    System.out.println(text.replaceAll("'",""));
-                }else if (text.startsWith("\"") && text.endsWith("\"")){
-                    System.out.println(text.replaceAll("\\s+", " "));
-                }else{
+                if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith("\"") && text.endsWith("\""))) {
+                    System.out.println(text.substring(1, text.length() -1));
+                } else {
                     System.out.println(text.replaceAll("\\s+", " "));
                 }
                 continue;
@@ -60,13 +61,9 @@ public class Main {
             }
 
             if (command.equals("cd")) {
-                if(arguments[0].equals("~")){
+                if (arguments.length == 0 || arguments[0].equals("~")) {
                     String homePath = System.getenv("HOME");
                     currentDir = new File(homePath);
-                    continue;
-                }
-                if (arguments.length == 0 ) {
-                    currentDir = new File(System.getProperty("user.home"));
                     continue;
                 }
 
@@ -84,6 +81,7 @@ public class Main {
                 }
                 continue;
             }
+
             String executablePath = findExecutableInPath(command);
             if (executablePath != null) {
                 List<String> fullCommand = new ArrayList<>();
@@ -92,13 +90,11 @@ public class Main {
 
                 try {
                     ProcessBuilder builder = new ProcessBuilder(fullCommand);
-                    builder.directory(currentDir); // هذا هو الأهم
+                    builder.directory(currentDir);
                     builder.redirectErrorStream(true);
                     Process process = builder.start();
 
-                    Scanner outputScanner = new Scanner(
-                        process.getInputStream()
-                    );
+                    Scanner outputScanner = new Scanner(process.getInputStream());
                     while (outputScanner.hasNextLine()) {
                         System.out.println(outputScanner.nextLine());
                     }
@@ -124,5 +120,39 @@ public class Main {
             }
         }
         return null;
+    }
+
+    public static List<String> tokenize(String input) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inSingleQuotes = false;
+        boolean inDoubleQuotes = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (c == '\'' && !inDoubleQuotes) {
+                inSingleQuotes = !inSingleQuotes;
+                continue;
+            } else if (c == '"' && !inSingleQuotes) {
+                inDoubleQuotes = !inDoubleQuotes;
+                continue;
+            }
+
+            if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+
+        return tokens;
     }
 }
