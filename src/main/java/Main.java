@@ -50,7 +50,7 @@ public class Main {
                 if ((rawText.startsWith("'") && rawText.endsWith("'")) || (rawText.startsWith("\"") && rawText.endsWith("\""))) {
                     System.out.println(rawText.substring(1, rawText.length() - 1));
                 } else {
-                    System.out.println(rawText);
+                    System.out.println(String.join(" ", rawText.trim().split("\\s+")));
                 }
                 continue;
             }
