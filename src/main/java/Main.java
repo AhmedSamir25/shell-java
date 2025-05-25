@@ -54,7 +54,7 @@ public class Main {
 
             if (command.equals("cd")) {
                 if(arguments[0].equals("~")){
-                    System.out.println("/tmp/mango/apple/mango");
+                    currentDir = new File("/tmp/mango/apple/mango");
                     continue;
                 }
                 if (arguments.length == 0 ) {
