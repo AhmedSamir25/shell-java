@@ -22,16 +22,16 @@ public class Main {
             if (partsList.isEmpty()) continue;
 
             String command = partsList.get(0);
-            String[] arguments = partsList.subList(1, partsList.size()).toArray(new String[0]);
+            List<String> arguments = partsList.subList(1, partsList.size());
 
             if (input.equals("exit 0")) break;
 
             if (command.equals("type")) {
-                if (arguments.length == 0) {
+                if (arguments.isEmpty()) {
                     System.out.println("Usage: type [command]");
                     continue;
                 }
-                String targetCommand = arguments[0];
+                String targetCommand = arguments.get(0);
                 if (Arrays.asList(shellType).contains(targetCommand)) {
                     System.out.println(targetCommand + " is a shell builtin");
                 } else {
@@ -46,12 +46,8 @@ public class Main {
             }
 
             if (command.equals("echo")) {
-                String text = String.join(" ", arguments);
-                if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith("\"") && text.endsWith("\""))) {
-                    System.out.println(text.substring(1, text.length() -1));
-                } else {
-                    System.out.println(text.replaceAll("\\s+", " "));
-                }
+                String result = processEchoArguments(arguments);
+                System.out.println(result);
                 continue;
             }
 
@@ -61,7 +57,7 @@ public class Main {
             }
 
             if (command.equals("cd")) {
-                if (arguments.length == 0 || arguments[0].equals("~")) {
+                if (arguments.isEmpty() || arguments.get(0).equals("~")) {
                     String homePath = System.getenv("HOME");
                     currentDir = new File(homePath);
                     continue;
@@ -86,7 +82,7 @@ public class Main {
             if (executablePath != null) {
                 List<String> fullCommand = new ArrayList<>();
                 fullCommand.add(command);
-                fullCommand.addAll(Arrays.asList(arguments));
+                fullCommand.addAll(arguments);
 
                 try {
                     ProcessBuilder builder = new ProcessBuilder(fullCommand);
@@ -122,6 +118,27 @@ public class Main {
         return null;
     }
 
+    private static String processEchoArguments(List<String> args) {
+        StringBuilder result = new StringBuilder();
+
+        int i = 0;
+        while (i < args.size()) {
+            String arg = args.get(i);
+        boolean hasSpaces = arg.contains(" ");
+            if (result.length() == 0) {
+                result.append(arg);
+            } else {
+                if (hasSpaces) {
+                    result.append(" ").append(arg);
+                } else {
+                    result.append(arg);
+                }
+            }
+            i++;
+        }
+
+        return result.toString();
+    }
     public static List<String> tokenize(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -163,5 +180,4 @@ public class Main {
 
         return tokens;
     }
-
 }
