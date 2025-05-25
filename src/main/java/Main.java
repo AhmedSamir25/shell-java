@@ -133,9 +133,17 @@ public class Main {
 
             if (c == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
+                if (!inSingleQuotes) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
                 continue;
             } else if (c == '"' && !inSingleQuotes) {
                 inDoubleQuotes = !inDoubleQuotes;
+                if (!inDoubleQuotes) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
                 continue;
             }
 
@@ -155,4 +163,5 @@ public class Main {
 
         return tokens;
     }
+
 }
