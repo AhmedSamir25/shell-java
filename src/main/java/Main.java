@@ -49,7 +49,7 @@ public class Main {
                 }else if (text.startsWith("\"") && text.endsWith("\"")){
                     System.out.println(text.replaceAll("\\s+", " "));
                 }else{
-                    System.out.println("\""+text+"\"");
+                    System.out.println(text.replaceAll("\\s+", " "));
                 }
                 continue;
             }
