@@ -43,7 +43,12 @@ public class Main {
             }
 
             if (command.equals("echo")) {
-                System.out.println(String.join(" ", arguments));
+                String text = String.join(" ", arguments);
+                if (text.startsWith("'") && text.endsWith("'")){
+                    System.out.println(text.replaceAll("'",""));
+                }else {
+                    System.out.println(text);
+                }
                 continue;
             }
 
