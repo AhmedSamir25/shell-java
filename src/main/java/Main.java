@@ -46,16 +46,10 @@ public class Main {
             }
 
             if (command.equals("echo")) {
-                String rawText = input.substring(4).trim(); // remove "echo"
-                if ((rawText.startsWith("'") && rawText.endsWith("'")) || (rawText.startsWith("\"") && rawText.endsWith("\""))) {
-                    System.out.println(rawText.substring(1, rawText.length() - 1));
-                } else {
-                    System.out.println(String.join(" ", rawText.trim().split("\\s+")));
-                }
+                String result = processEchoArguments(arguments);
+                System.out.println(result);
                 continue;
             }
-
-
 
             if (command.equals("pwd")) {
                 System.out.println(currentDir.getAbsolutePath());
@@ -126,25 +120,25 @@ public class Main {
 
     private static String processEchoArguments(List<String> args) {
         StringBuilder result = new StringBuilder();
+        boolean first = true;
 
-        int i = 0;
-        while (i < args.size()) {
-            String arg = args.get(i);
-        boolean hasSpaces = arg.contains(" ");
-            if (result.length() == 0) {
-                result.append(arg);
-            } else {
-                if (hasSpaces) {
-                    result.append(" ").append(arg);
-                } else {
-                    result.append(arg);
-                }
+        for (String arg : args) {
+            if (!first) {
+                result.append(" ");
             }
-            i++;
+            first = false;
+
+            if ((arg.startsWith("'") && arg.endsWith("'")) ||
+                    (arg.startsWith("\"") && arg.endsWith("\""))) {
+                arg = arg.substring(1, arg.length() - 1);
+            }
+
+            result.append(arg);
         }
 
         return result.toString();
     }
+
     public static List<String> tokenize(String input) {
         List<String> tokens = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -156,17 +150,9 @@ public class Main {
 
             if (c == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
-                if (!inSingleQuotes) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
                 continue;
             } else if (c == '"' && !inSingleQuotes) {
                 inDoubleQuotes = !inDoubleQuotes;
-                if (!inDoubleQuotes) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
                 continue;
             }
 
@@ -174,6 +160,9 @@ public class Main {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
+                }
+                while (i + 1 < input.length() && input.charAt(i + 1) == ' ') {
+                    i++;
                 }
             } else {
                 current.append(c);
