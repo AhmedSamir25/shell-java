@@ -47,7 +47,7 @@ public class Main {
                 if (text.startsWith("'") && text.endsWith("'")){
                     System.out.println(text.replaceAll("'",""));
                 }else if (text.startsWith("\"") && text.endsWith("\"")){
-                    System.out.println(text);
+                    System.out.println(text.replaceAll("\\s+", " "));
                 }else{
                     System.out.println("\""+text+"\"");
                 }
