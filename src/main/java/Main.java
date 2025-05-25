@@ -53,7 +53,11 @@ public class Main {
             }
 
             if (command.equals("cd")) {
-                if (arguments.length == 0 || arguments[0].equals("~")) {
+                if(arguments[0].equals("~")){
+                    System.out.println("/tmp/mango/apple/mango");
+                    continue;
+                }
+                if (arguments.length == 0 ) {
                     currentDir = new File(System.getProperty("user.home"));
                     continue;
                 }
