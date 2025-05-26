@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
@@ -18,7 +19,17 @@ public class Main {
             String input = scanner.nextLine().trim();
             if (input.isEmpty()) continue;
 
-            List<String> partsList = tokenize(input);
+            boolean isRedirect = input.contains(">") || input.contains("1>");
+            String outputFileName = null;
+            String commandWithoutRedirect = input;
+
+            if (isRedirect) {
+                String[] parts = splitCommandAndFile(input);
+                commandWithoutRedirect = parts[0];
+                outputFileName = parts[1];
+            }
+
+            List<String> partsList = tokenize(commandWithoutRedirect);
             if (partsList.isEmpty()) continue;
 
             String command = partsList.get(0);
@@ -27,82 +38,158 @@ public class Main {
             if (input.equals("exit 0")) break;
 
             if (command.equals("type")) {
-                if (arguments.isEmpty()) {
-                    System.out.println("Usage: type [command]");
-                    continue;
-                }
-                String targetCommand = arguments.get(0);
-                if (Arrays.asList(shellType).contains(targetCommand)) {
-                    System.out.println(targetCommand + " is a shell builtin");
-                } else {
-                    String path = findExecutableInPath(targetCommand);
-                    if (path != null) {
-                        System.out.println(targetCommand + " is " + path);
-                    } else {
-                        System.out.println(targetCommand + ": not found");
-                    }
-                }
+                handleTypeCommand(arguments, shellType);
                 continue;
             }
 
             if (command.equals("echo")) {
                 String result = processEchoArguments(arguments);
-                System.out.println(result);
+                if (isRedirect && outputFileName != null) {
+                    writeToFile(outputFileName, result);
+                } else {
+                    System.out.println(result);
+                }
                 continue;
             }
 
             if (command.equals("pwd")) {
-                System.out.println(currentDir.getAbsolutePath());
+                String pwdResult = currentDir.getAbsolutePath();
+                if (isRedirect && outputFileName != null) {
+                    writeToFile(outputFileName, pwdResult);
+                } else {
+                    System.out.println(pwdResult);
+                }
                 continue;
             }
 
             if (command.equals("cd")) {
-                if (arguments.isEmpty() || arguments.get(0).equals("~")) {
-                    String homePath = System.getenv("HOME");
-                    currentDir = new File(homePath);
-                    continue;
-                }
-
-                String path = String.join(" ", arguments);
-                File targetDir = new File(path);
-
-                if (!targetDir.isAbsolute()) {
-                    targetDir = new File(currentDir, path);
-                }
-
-                if (targetDir.exists() && targetDir.isDirectory()) {
-                    currentDir = targetDir.getCanonicalFile();
-                } else {
-                    System.out.println(path + ": No such file or directory");
-                }
+                handleCdCommand(arguments, currentDir);
                 continue;
             }
 
             String executablePath = findExecutableInPath(command);
             if (executablePath != null) {
-                List<String> fullCommand = new ArrayList<>();
-                fullCommand.add(command);
-                fullCommand.addAll(arguments);
-
-                try {
-                    ProcessBuilder builder = new ProcessBuilder(fullCommand);
-                    builder.directory(currentDir);
-                    builder.redirectErrorStream(true);
-                    Process process = builder.start();
-
-                    Scanner outputScanner = new Scanner(
-                        process.getInputStream()
-                    );
-                    while (outputScanner.hasNextLine()) {
-                        System.out.println(outputScanner.nextLine());
-                    }
-                    process.waitFor();
-                } catch (IOException | InterruptedException e) {
-                    System.out.println(command + ": failed to execute");
-                }
+                handleExternalCommand(
+                    command,
+                    arguments,
+                    currentDir,
+                    isRedirect,
+                    outputFileName
+                );
             } else {
                 System.out.println(command + ": command not found");
             }
+        }
+    }
+
+    private static String[] splitCommandAndFile(String input) {
+        int index = input.indexOf("1>");
+        if (index == -1) {
+            index = input.indexOf(">");
+            if (index != -1) {
+                return new String[] {
+                    input.substring(0, index).trim(),
+                    input.substring(index + 1).trim(),
+                };
+            }
+        } else {
+            return new String[] {
+                input.substring(0, index).trim(),
+                input.substring(index + 2).trim(),
+            };
+        }
+        return new String[] { input, null };
+    }
+
+    private static void handleTypeCommand(
+        List<String> arguments,
+        String[] shellType
+    ) {
+        if (arguments.isEmpty()) {
+            System.out.println("Usage: type [command]");
+            return;
+        }
+        String targetCommand = arguments.get(0);
+        if (Arrays.asList(shellType).contains(targetCommand)) {
+            System.out.println(targetCommand + " is a shell builtin");
+        } else {
+            String path = findExecutableInPath(targetCommand);
+            if (path != null) {
+                System.out.println(targetCommand + " is " + path);
+            } else {
+                System.out.println(targetCommand + ": not found");
+            }
+        }
+    }
+
+    private static void handleCdCommand(
+        List<String> arguments,
+        File currentDir
+    ) throws IOException {
+        if (arguments.isEmpty() || arguments.get(0).equals("~")) {
+            String homePath = System.getenv("HOME");
+            currentDir = new File(homePath);
+            return;
+        }
+
+        String path = String.join(" ", arguments);
+        File targetDir = new File(path);
+
+        if (!targetDir.isAbsolute()) {
+            targetDir = new File(currentDir, path);
+        }
+
+        if (targetDir.exists() && targetDir.isDirectory()) {
+            currentDir = targetDir.getCanonicalFile();
+        } else {
+            System.out.println(path + ": No such file or directory");
+        }
+    }
+
+    private static void handleExternalCommand(
+        String command,
+        List<String> arguments,
+        File currentDir,
+        boolean isRedirect,
+        String outputFileName
+    ) {
+        List<String> fullCommand = new ArrayList<>();
+        fullCommand.add(command);
+        fullCommand.addAll(arguments);
+
+        try {
+            ProcessBuilder builder = new ProcessBuilder(fullCommand);
+            builder.directory(currentDir);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
+
+            StringBuilder output = new StringBuilder();
+            Scanner outputScanner = new Scanner(process.getInputStream());
+            while (outputScanner.hasNextLine()) {
+                String line = outputScanner.nextLine();
+                output.append(line).append("\n");
+            }
+
+            if (isRedirect && outputFileName != null) {
+                writeToFile(outputFileName, output.toString());
+            } else {
+                System.out.print(output.toString());
+            }
+
+            process.waitFor();
+        } catch (IOException | InterruptedException e) {
+            System.out.println(command + ": failed to execute");
+        }
+    }
+
+    private static void writeToFile(String fileName, String content) {
+        try {
+            FileWriter writer = new FileWriter(fileName);
+            writer.write(content);
+            writer.close();
+            // System.out.println("Output written to " + fileName);
+        } catch (IOException e) {
+            System.out.println("Error writing to file: " + e.getMessage());
         }
     }
 
