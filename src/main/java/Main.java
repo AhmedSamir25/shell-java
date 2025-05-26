@@ -146,8 +146,10 @@ public class Main {
 
             if (escapeNext) {
                 // Handle escape sequences
-                if (c == 'n') {
-                    current.append('\n');
+                if (c == 'n' && !inSingleQuotes && !inDoubleQuotes) {
+                    current.append('n'); // For bare \n, keep as literal 'n'
+                } else if (c == 'n' && inDoubleQuotes) {
+                    current.append('\n'); // In double quotes, convert to newline
                 } else if (c == 't') {
                     current.append('\t');
                 } else if (c == 'r') {
