@@ -20,13 +20,16 @@ public class Main {
             if (input.isEmpty()) continue;
 
             boolean isRedirect = input.contains(">") || input.contains("1>");
+            boolean isErrorRedirect = input.contains("2>");
             String outputFileName = null;
+            String errorFileName = null;
             String commandWithoutRedirect = input;
 
-            if (isRedirect) {
+            if (isRedirect || isErrorRedirect) {
                 String[] parts = splitCommandAndFile(input);
                 commandWithoutRedirect = parts[0];
                 outputFileName = parts[1];
+                errorFileName = parts[2];
             }
 
             List<String> partsList = tokenize(commandWithoutRedirect);
@@ -74,7 +77,9 @@ public class Main {
                     arguments,
                     currentDir,
                     isRedirect,
-                    outputFileName
+                    outputFileName,
+                    isErrorRedirect,
+                    errorFileName
                 );
             } else {
                 System.out.println(command + ": command not found");
@@ -83,22 +88,29 @@ public class Main {
     }
 
     private static String[] splitCommandAndFile(String input) {
-        int index = input.indexOf("1>");
-        if (index == -1) {
-            index = input.indexOf(">");
-            if (index != -1) {
-                return new String[] {
-                    input.substring(0, index).trim(),
-                    input.substring(index + 1).trim(),
-                };
+        String outputFile = null;
+        String errorFile = null;
+        String command = input;
+
+        int errorIndex = input.indexOf("2>");
+        if (errorIndex != -1) {
+            command = input.substring(0, errorIndex).trim();
+            errorFile = input.substring(errorIndex + 2).trim();
+        }
+
+        int outputIndex = input.indexOf("1>");
+        if (outputIndex == -1) {
+            outputIndex = input.indexOf(">");
+            if (outputIndex != -1) {
+                command = input.substring(0, outputIndex).trim();
+                outputFile = input.substring(outputIndex + 1).trim();
             }
         } else {
-            return new String[] {
-                input.substring(0, index).trim(),
-                input.substring(index + 2).trim(),
-            };
+            command = input.substring(0, outputIndex).trim();
+            outputFile = input.substring(outputIndex + 2).trim();
         }
-        return new String[] { input, null };
+
+        return new String[] { command, outputFile, errorFile };
     }
 
     private static void handleTypeCommand(
@@ -151,7 +163,9 @@ public class Main {
         List<String> arguments,
         File currentDir,
         boolean isRedirect,
-        String outputFileName
+        String outputFileName,
+        boolean isErrorRedirect,
+        String errorFileName
     ) {
         List<String> fullCommand = new ArrayList<>();
         fullCommand.add(command);
@@ -160,20 +174,27 @@ public class Main {
         try {
             ProcessBuilder builder = new ProcessBuilder(fullCommand);
             builder.directory(currentDir);
-            builder.redirectErrorStream(true);
-            Process process = builder.start();
 
-            StringBuilder output = new StringBuilder();
-            Scanner outputScanner = new Scanner(process.getInputStream());
-            while (outputScanner.hasNextLine()) {
-                String line = outputScanner.nextLine();
-                output.append(line).append("\n");
+            if (isRedirect || isErrorRedirect) {
+                if (isRedirect && outputFileName != null) {
+                    builder.redirectOutput(new File(outputFileName));
+                }
+                if (isErrorRedirect && errorFileName != null) {
+                    builder.redirectError(new File(errorFileName));
+                } else if (isRedirect && outputFileName != null) {
+                    builder.redirectErrorStream(true);
+                }
+            } else {
+                builder.redirectErrorStream(true);
             }
 
-            if (isRedirect && outputFileName != null) {
-                writeToFile(outputFileName, output.toString());
-            } else {
-                System.out.print(output.toString());
+            Process process = builder.start();
+
+            if (!isRedirect && !isErrorRedirect) {
+                Scanner outputScanner = new Scanner(process.getInputStream());
+                while (outputScanner.hasNextLine()) {
+                    System.out.println(outputScanner.nextLine());
+                }
             }
 
             process.waitFor();
@@ -187,7 +208,6 @@ public class Main {
             FileWriter writer = new FileWriter(fileName);
             writer.write(content);
             writer.close();
-            // System.out.println("Output written to " + fileName);
         } catch (IOException e) {
             System.out.println("Error writing to file: " + e.getMessage());
         }
