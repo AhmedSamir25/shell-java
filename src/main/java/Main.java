@@ -145,29 +145,13 @@ public class Main {
             char c = input.charAt(i);
 
             if (escapeNext) {
-                // Handle escape sequences
-                if (c == 'n' && !inSingleQuotes && !inDoubleQuotes) {
-                    current.append('n'); // For bare \n, keep as literal 'n'
-                } else if (c == 'n' && inDoubleQuotes) {
-                    current.append('\n'); // In double quotes, convert to newline
-                } else if (c == 't') {
-                    current.append('\t');
-                } else if (c == 'r') {
-                    current.append('\r');
-                } else if (c == '\\') {
-                    current.append('\\');
-                } else if (c == '\'') {
-                    current.append('\'');
-                } else if (c == '"') {
-                    current.append('"');
-                } else if (c == ' ') {
-                    current.append(' ');
-                } else if (Character.isDigit(c)) {
-                    // Handle octal escape sequences like \23
+                // Handle specific escape sequences
+                if (Character.isDigit(c)) {
+                    // Handle octal escape sequences like \54
                     StringBuilder octal = new StringBuilder();
                     octal.append(c);
 
-                    // Look ahead for more octal digits
+                    // Look ahead for more octal digits (up to 3 total)
                     int j = i + 1;
                     while (
                         j < input.length() &&
@@ -190,6 +174,7 @@ public class Main {
                         current.append(c);
                     }
                 } else {
+                    // For all other escaped characters, add them literally
                     current.append(c);
                 }
                 escapeNext = false;
