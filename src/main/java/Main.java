@@ -154,7 +154,8 @@ public class Main {
             char c = input.charAt(i);
 
             if (escapeNext) {
-                current.append(c);
+                // Always preserve the escaped character
+                current.append('\\').append(c);
                 escapeNext = false;
                 continue;
             }
@@ -189,6 +190,61 @@ public class Main {
             tokens.add(current.toString());
         }
 
-        return tokens;
+        List<String> processedTokens = new ArrayList<>();
+        for (String token : tokens) {
+            processedTokens.add(processQuotedToken(token));
+        }
+
+        return processedTokens;
+    }
+
+    private static String processQuotedToken(String token) {
+        boolean inSingleQuotes = false;
+        boolean inDoubleQuotes = false;
+        StringBuilder result = new StringBuilder();
+        int i = 0;
+
+        while (i < token.length()) {
+            char c = token.charAt(i);
+
+            if (c == '\'' && !inDoubleQuotes) {
+                inSingleQuotes = !inSingleQuotes;
+                i++;
+            } else if (c == '"' && !inSingleQuotes) {
+                inDoubleQuotes = !inDoubleQuotes;
+                i++;
+            } else if (c == '\\' && !inSingleQuotes) {
+                if (inDoubleQuotes && i + 1 < token.length()) {
+                    char next = token.charAt(i + 1);
+                    if (
+                        next == '$' ||
+                        next == '`' ||
+                        next == '"' ||
+                        next == '\\' ||
+                        next == '\n'
+                    ) {
+                        result.append(next);
+                        i += 2;
+                    } else {
+                        result.append(c);
+                        i++;
+                    }
+                } else {
+                    // Outside quotes or in single quotes, preserve the backslash
+                    result.append(c);
+                    if (i + 1 < token.length()) {
+                        result.append(token.charAt(i + 1));
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+                }
+            } else {
+                result.append(c);
+                i++;
+            }
+        }
+
+        return result.toString();
     }
 }
