@@ -145,38 +145,7 @@ public class Main {
             char c = input.charAt(i);
 
             if (escapeNext) {
-                // Handle specific escape sequences
-                if (Character.isDigit(c)) {
-                    // Handle octal escape sequences like \54
-                    StringBuilder octal = new StringBuilder();
-                    octal.append(c);
-
-                    // Look ahead for more octal digits (up to 3 total)
-                    int j = i + 1;
-                    while (
-                        j < input.length() &&
-                        Character.isDigit(input.charAt(j)) &&
-                        octal.length() < 3
-                    ) {
-                        octal.append(input.charAt(j));
-                        j++;
-                    }
-
-                    try {
-                        int octalValue = Integer.parseInt(octal.toString(), 8);
-                        if (octalValue <= 255) {
-                            current.append((char) octalValue);
-                            i = j - 1; // Skip the processed digits
-                        } else {
-                            current.append(c);
-                        }
-                    } catch (NumberFormatException e) {
-                        current.append(c);
-                    }
-                } else {
-                    // For all other escaped characters, add them literally
-                    current.append(c);
-                }
+                current.append('\\').append(c);
                 escapeNext = false;
                 continue;
             }
