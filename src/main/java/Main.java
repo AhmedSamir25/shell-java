@@ -139,53 +139,18 @@ public class Main {
         StringBuilder current = new StringBuilder();
         boolean inSingleQuotes = false;
         boolean inDoubleQuotes = false;
-        boolean escapeNext = false;
 
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
 
-            if (escapeNext) {
-                // Handle specific escape sequences
-                if (Character.isDigit(c)) {
-                    // Handle octal escape sequences like \17, \54
-                    StringBuilder octal = new StringBuilder();
-                    int startIndex = i;
-
-                    // Collect up to 3 octal digits
-                    while (
-                        i < input.length() &&
-                        Character.isDigit(input.charAt(i)) &&
-                        octal.length() < 3
-                    ) {
-                        octal.append(input.charAt(i));
-                        i++;
-                    }
-                    i--; // Back up one since the loop will increment
-
-                    try {
-                        int octalValue = Integer.parseInt(octal.toString(), 8);
-                        if (octalValue <= 255) {
-                            current.append((char) octalValue);
-                        } else {
-                            // If invalid octal, treat as literal
-                            current.append(input.charAt(startIndex));
-                            i = startIndex; // Reset position
-                        }
-                    } catch (NumberFormatException e) {
-                        // If invalid octal, treat as literal
-                        current.append(input.charAt(startIndex));
-                        i = startIndex; // Reset position
-                    }
-                } else {
-                    // For all other escaped characters, add them literally
-                    current.append(c);
-                }
-                escapeNext = false;
-                continue;
-            }
-
-            if (c == '\\' && !inSingleQuotes) {
-                escapeNext = true;
+            // Handle escape sequences (only outside quotes)
+            if (
+                c == '\\' &&
+                i < input.length() - 1 &&
+                !inSingleQuotes &&
+                !inDoubleQuotes
+            ) {
+                current.append(input.charAt(++i));
                 continue;
             }
 
