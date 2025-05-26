@@ -135,6 +135,8 @@ public class Main {
                 arg = arg.substring(1, arg.length() - 1);
             }
 
+            arg = arg.replace("\\'", "'").replace("\\\"", "\"");
+
             result.append(arg);
         }
 
@@ -146,54 +148,41 @@ public class Main {
         StringBuilder current = new StringBuilder();
         boolean inSingleQuotes = false;
         boolean inDoubleQuotes = false;
+        boolean escapeNext = false;
 
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
 
-            if (c == '\'' && !inDoubleQuotes) {
+            if (escapeNext) {
+                current.append(c);
+                escapeNext = false;
+                continue;
+            }
+
+            if (c == '\\' && !inSingleQuotes) {
+                escapeNext = true;
+                continue;
+            }
+
+            if (c == '\'' && !inDoubleQuotes && !escapeNext) {
                 inSingleQuotes = !inSingleQuotes;
                 continue;
-            } else if (c == '"' && !inSingleQuotes) {
+            }
+
+            if (c == '"' && !inSingleQuotes && !escapeNext) {
                 inDoubleQuotes = !inDoubleQuotes;
                 continue;
             }
 
-            if (c == '\\' && !inSingleQuotes && !inDoubleQuotes) {
-                if (i + 1 < input.length()) {
-                    char next = input.charAt(i + 1);
-                    if (next == ' ') {
-                        current.append(' ');
-                        i++;
-                        continue;
-                    } else if (next == '\\') {
-                        int backslashCount = 1;
-                        while (
-                            i + 1 < input.length() &&
-                            input.charAt(i + 1) == '\\'
-                        ) {
-                            backslashCount++;
-                            i++;
-                        }
-                        if (backslashCount == 1) {
-                            current.append('\\');
-                        }
-                        continue;
-                    }
-                }
-                current.append('\\');
-                continue;
-            }
             if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
                     current.setLength(0);
                 }
-                while (i + 1 < input.length() && input.charAt(i + 1) == ' ') {
-                    i++;
-                }
-            } else {
-                current.append(c);
+                continue;
             }
+
+            current.append(c);
         }
 
         if (current.length() > 0) {
