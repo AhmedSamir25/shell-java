@@ -145,7 +145,41 @@ public class Main {
             char c = input.charAt(i);
 
             if (escapeNext) {
-                current.append('\\').append(c);
+                // Handle specific escape sequences
+                if (Character.isDigit(c)) {
+                    // Handle octal escape sequences like \17, \54
+                    StringBuilder octal = new StringBuilder();
+                    int startIndex = i;
+
+                    // Collect up to 3 octal digits
+                    while (
+                        i < input.length() &&
+                        Character.isDigit(input.charAt(i)) &&
+                        octal.length() < 3
+                    ) {
+                        octal.append(input.charAt(i));
+                        i++;
+                    }
+                    i--; // Back up one since the loop will increment
+
+                    try {
+                        int octalValue = Integer.parseInt(octal.toString(), 8);
+                        if (octalValue <= 255) {
+                            current.append((char) octalValue);
+                        } else {
+                            // If invalid octal, treat as literal
+                            current.append(input.charAt(startIndex));
+                            i = startIndex; // Reset position
+                        }
+                    } catch (NumberFormatException e) {
+                        // If invalid octal, treat as literal
+                        current.append(input.charAt(startIndex));
+                        i = startIndex; // Reset position
+                    }
+                } else {
+                    // For all other escaped characters, add them literally
+                    current.append(c);
+                }
                 escapeNext = false;
                 continue;
             }
