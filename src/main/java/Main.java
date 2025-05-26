@@ -128,15 +128,6 @@ public class Main {
                 result.append(" ");
             }
             first = false;
-            if (
-                (arg.startsWith("'") && arg.endsWith("'")) ||
-                (arg.startsWith("\"") && arg.endsWith("\""))
-            ) {
-                arg = arg.substring(1, arg.length() - 1);
-            }
-
-            arg = arg.replace("\\'", "'").replace("\\\"", "\"");
-
             result.append(arg);
         }
 
@@ -154,8 +145,51 @@ public class Main {
             char c = input.charAt(i);
 
             if (escapeNext) {
-                // Always preserve the escaped character
-                current.append('\\').append(c);
+                // Handle escape sequences
+                if (c == 'n') {
+                    current.append('\n');
+                } else if (c == 't') {
+                    current.append('\t');
+                } else if (c == 'r') {
+                    current.append('\r');
+                } else if (c == '\\') {
+                    current.append('\\');
+                } else if (c == '\'') {
+                    current.append('\'');
+                } else if (c == '"') {
+                    current.append('"');
+                } else if (c == ' ') {
+                    current.append(' ');
+                } else if (Character.isDigit(c)) {
+                    // Handle octal escape sequences like \23
+                    StringBuilder octal = new StringBuilder();
+                    octal.append(c);
+
+                    // Look ahead for more octal digits
+                    int j = i + 1;
+                    while (
+                        j < input.length() &&
+                        Character.isDigit(input.charAt(j)) &&
+                        octal.length() < 3
+                    ) {
+                        octal.append(input.charAt(j));
+                        j++;
+                    }
+
+                    try {
+                        int octalValue = Integer.parseInt(octal.toString(), 8);
+                        if (octalValue <= 255) {
+                            current.append((char) octalValue);
+                            i = j - 1; // Skip the processed digits
+                        } else {
+                            current.append(c);
+                        }
+                    } catch (NumberFormatException e) {
+                        current.append(c);
+                    }
+                } else {
+                    current.append(c);
+                }
                 escapeNext = false;
                 continue;
             }
@@ -165,12 +199,12 @@ public class Main {
                 continue;
             }
 
-            if (c == '\'' && !inDoubleQuotes && !escapeNext) {
+            if (c == '\'' && !inDoubleQuotes) {
                 inSingleQuotes = !inSingleQuotes;
                 continue;
             }
 
-            if (c == '"' && !inSingleQuotes && !escapeNext) {
+            if (c == '"' && !inSingleQuotes) {
                 inDoubleQuotes = !inDoubleQuotes;
                 continue;
             }
@@ -190,61 +224,6 @@ public class Main {
             tokens.add(current.toString());
         }
 
-        List<String> processedTokens = new ArrayList<>();
-        for (String token : tokens) {
-            processedTokens.add(processQuotedToken(token));
-        }
-
-        return processedTokens;
-    }
-
-    private static String processQuotedToken(String token) {
-        boolean inSingleQuotes = false;
-        boolean inDoubleQuotes = false;
-        StringBuilder result = new StringBuilder();
-        int i = 0;
-
-        while (i < token.length()) {
-            char c = token.charAt(i);
-
-            if (c == '\'' && !inDoubleQuotes) {
-                inSingleQuotes = !inSingleQuotes;
-                i++;
-            } else if (c == '"' && !inSingleQuotes) {
-                inDoubleQuotes = !inDoubleQuotes;
-                i++;
-            } else if (c == '\\' && !inSingleQuotes) {
-                if (inDoubleQuotes && i + 1 < token.length()) {
-                    char next = token.charAt(i + 1);
-                    if (
-                        next == '$' ||
-                        next == '`' ||
-                        next == '"' ||
-                        next == '\\' ||
-                        next == '\n'
-                    ) {
-                        result.append(next);
-                        i += 2;
-                    } else {
-                        result.append(c);
-                        i++;
-                    }
-                } else {
-                    // Outside quotes or in single quotes, preserve the backslash
-                    result.append(c);
-                    if (i + 1 < token.length()) {
-                        result.append(token.charAt(i + 1));
-                        i += 2;
-                    } else {
-                        i++;
-                    }
-                }
-            } else {
-                result.append(c);
-                i++;
-            }
-        }
-
-        return result.toString();
+        return tokens;
     }
 }
