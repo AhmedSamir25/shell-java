@@ -179,6 +179,7 @@ public class Main {
                         }
                         continue;
                     }
+                }
                 current.append('\\');
                 continue;
             }
