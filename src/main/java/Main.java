@@ -130,7 +130,6 @@ public class Main {
             first = false;
             result.append(arg);
         }
-
         return result.toString();
     }
 
@@ -143,14 +142,30 @@ public class Main {
         for (int i = 0; i < input.length(); i++) {
             char c = input.charAt(i);
 
-            // Handle escape sequences (only outside quotes)
-            if (
-                c == '\\' &&
-                i < input.length() - 1 &&
-                !inSingleQuotes &&
-                !inDoubleQuotes
-            ) {
-                current.append(input.charAt(++i));
+            if (c == '\\' && i < input.length() - 1) {
+                if (!inSingleQuotes) {
+                    char nextChar = input.charAt(i + 1);
+                    if (inDoubleQuotes) {
+                        if (
+                            nextChar == '"' ||
+                            nextChar == '\\' ||
+                            nextChar == '$' ||
+                            nextChar == '`'
+                        ) {
+                            current.append(nextChar);
+                            i++;
+                            continue;
+                        } else {
+                            current.append(c);
+                        }
+                    } else {
+                        current.append(nextChar);
+                        i++;
+                        continue;
+                    }
+                } else {
+                    current.append(c);
+                }
                 continue;
             }
 
