@@ -90,7 +90,9 @@ public class Main {
                     builder.redirectErrorStream(true);
                     Process process = builder.start();
 
-                    Scanner outputScanner = new Scanner(process.getInputStream());
+                    Scanner outputScanner = new Scanner(
+                        process.getInputStream()
+                    );
                     while (outputScanner.hasNextLine()) {
                         System.out.println(outputScanner.nextLine());
                     }
@@ -121,15 +123,15 @@ public class Main {
     private static String processEchoArguments(List<String> args) {
         StringBuilder result = new StringBuilder();
         boolean first = true;
-
         for (String arg : args) {
             if (!first) {
                 result.append(" ");
             }
             first = false;
-
-            if ((arg.startsWith("'") && arg.endsWith("'")) ||
-                    (arg.startsWith("\"") && arg.endsWith("\""))) {
+            if (
+                (arg.startsWith("'") && arg.endsWith("'")) ||
+                (arg.startsWith("\"") && arg.endsWith("\""))
+            ) {
                 arg = arg.substring(1, arg.length() - 1);
             }
 
@@ -156,6 +158,30 @@ public class Main {
                 continue;
             }
 
+            if (c == '\\' && !inSingleQuotes && !inDoubleQuotes) {
+                if (i + 1 < input.length()) {
+                    char next = input.charAt(i + 1);
+                    if (next == ' ') {
+                        current.append(' ');
+                        i++;
+                        continue;
+                    } else if (next == '\\') {
+                        int backslashCount = 1;
+                        while (
+                            i + 1 < input.length() &&
+                            input.charAt(i + 1) == '\\'
+                        ) {
+                            backslashCount++;
+                            i++;
+                        }
+                        if (backslashCount == 1) {
+                            current.append('\\');
+                        }
+                        continue;
+                    }
+                current.append('\\');
+                continue;
+            }
             if (c == ' ' && !inSingleQuotes && !inDoubleQuotes) {
                 if (current.length() > 0) {
                     tokens.add(current.toString());
