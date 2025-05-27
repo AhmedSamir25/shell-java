@@ -1,4 +1,5 @@
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
@@ -55,7 +56,9 @@ public class Main {
                     System.out.println(result);
                 }
 
-                if (isErrorRedirect && errorFileName != null) {}
+                if (isErrorRedirect && errorFileName != null) {
+                    readToFile(errorFileName);
+                }
                 continue;
             }
 
@@ -309,6 +312,22 @@ public class Main {
             writer.close();
         } catch (IOException e) {
             System.out.println("Error writing to file: " + e.getMessage());
+        }
+    }
+
+    private static void readToFile(String fileName) {
+        try {
+            System.out.println("this is file name" + fileName);
+            File myObj = new File(fileName);
+            Scanner myReader = new Scanner(myObj);
+            while (myReader.hasNextLine()) {
+                String data = myReader.nextLine();
+                System.out.println(data);
+            }
+            myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
         }
     }
 
