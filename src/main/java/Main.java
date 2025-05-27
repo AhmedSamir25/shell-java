@@ -181,10 +181,32 @@ public class Main {
             builder.inheritIO();
 
             if (streams.output() != null) {
-                builder.redirectOutput(streams.output());
+                // Ensure parent directories exist
+                if (streams.output().getParentFile() != null) {
+                    streams.output().getParentFile().mkdirs();
+                }
+
+                if (streams.appendOutput()) {
+                    builder.redirectOutput(
+                        ProcessBuilder.Redirect.appendTo(streams.output())
+                    );
+                } else {
+                    builder.redirectOutput(streams.output());
+                }
             }
             if (streams.err() != null) {
-                builder.redirectError(streams.err());
+                // Ensure parent directories exist
+                if (streams.err().getParentFile() != null) {
+                    streams.err().getParentFile().mkdirs();
+                }
+
+                if (streams.appendErr()) {
+                    builder.redirectError(
+                        ProcessBuilder.Redirect.appendTo(streams.err())
+                    );
+                } else {
+                    builder.redirectError(streams.err());
+                }
             }
 
             Process process = builder.start();
@@ -297,26 +319,49 @@ public class Main {
         File output = null;
         File err = null;
         String lastRedirection = null;
+        boolean appendOutput = false; // For output redirection
+        boolean appendErr = false; // For error redirection
 
         for (String command : parts) {
-            switch (lastRedirection) {
-                case ">", "1>" -> {
-                    output = new File(command);
-                    lastRedirection = null;
+            if (lastRedirection != null) {
+                switch (lastRedirection) {
+                    case ">", "1>" -> {
+                        output = new File(command);
+                        appendOutput = false; // Overwrite mode
+                        lastRedirection = null;
+                    }
+                    case "2>" -> {
+                        err = new File(command);
+                        appendErr = false; // Overwrite mode for stderr
+                        lastRedirection = null;
+                    }
+                    case ">>", "1>>" -> {
+                        output = new File(command);
+                        appendOutput = true; // Append mode
+                        lastRedirection = null;
+                    }
+                    case "2>>" -> {
+                        err = new File(command);
+                        appendErr = true; // Append mode for stderr
+                        lastRedirection = null;
+                    }
                 }
-                case "2>" -> {
-                    err = new File(command);
-                    lastRedirection = null;
-                }
-                case null, default -> {
-                    switch (command) {
-                        case ">", "1>", "2>" -> lastRedirection = command;
-                        default -> newCommands.add(command);
+            } else {
+                switch (command) {
+                    case ">", "1>", "2>", ">>", "1>>", "2>>" -> {
+                        lastRedirection = command;
+                    }
+                    default -> {
+                        newCommands.add(command);
                     }
                 }
             }
         }
-        return new ExtractResult(newCommands, new Streams(null, output, err));
+
+        return new ExtractResult(
+            newCommands,
+            new Streams(null, output, err, appendOutput, appendErr)
+        );
     }
 
     private static record ExtractResult(
@@ -324,7 +369,13 @@ public class Main {
         Streams streams
     ) {}
 
-    private static record Streams(File input, File output, File err) {
+    private static record Streams(
+        File input,
+        File output,
+        File err,
+        boolean appendOutput,
+        boolean appendErr
+    ) {
         public Printer toPrinter(
             PrintStream defaultOut,
             PrintStream defaultErr
@@ -335,8 +386,9 @@ public class Main {
                 if (output.getParentFile() != null) {
                     output.getParentFile().mkdirs();
                 }
-                output.createNewFile();
-                outStream = new PrintStream(new FileOutputStream(output));
+                outStream = new PrintStream(
+                    new FileOutputStream(output, appendOutput)
+                );
             } else {
                 outStream = defaultOut;
             }
@@ -347,8 +399,9 @@ public class Main {
                 if (err.getParentFile() != null) {
                     err.getParentFile().mkdirs();
                 }
-                err.createNewFile();
-                errStream = new PrintStream(new FileOutputStream(err));
+                errStream = new PrintStream(
+                    new FileOutputStream(err, appendErr)
+                );
             } else {
                 errStream = defaultErr;
             }
