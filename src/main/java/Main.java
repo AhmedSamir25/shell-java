@@ -8,7 +8,7 @@ public class Main {
     private static File currentDir;
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
+        String[] shellType = { "echo", "exit", "type", "pwd", "cd", "cat" };
         Scanner scanner = new Scanner(System.in);
         currentDir = new File(System.getProperty("user.dir"));
 
@@ -54,6 +54,8 @@ public class Main {
                 } else {
                     System.out.println(result);
                 }
+
+                if (isErrorRedirect && errorFileName != null) {}
                 continue;
             }
 
@@ -64,6 +66,8 @@ public class Main {
                 } else {
                     System.out.println(pwdResult);
                 }
+
+                if (isErrorRedirect && errorFileName != null) {}
                 continue;
             }
 
@@ -83,7 +87,12 @@ public class Main {
                     errorFileName
                 );
             } else {
-                System.out.println(command + ": command not found");
+                String errorMsg = command + ": command not found";
+                if (isErrorRedirect && errorFileName != null) {
+                    writeToFile(errorFileName, errorMsg);
+                } else {
+                    System.err.println(errorMsg);
+                }
             }
         }
     }
@@ -93,25 +102,57 @@ public class Main {
         String errorFile = null;
         String command = input;
 
+        // Handle 2> first (stderr redirection)
         int errorIndex = input.indexOf("2>");
         if (errorIndex != -1) {
-            command = input.substring(0, errorIndex).trim();
-            errorFile = input.substring(errorIndex + 2).trim();
+            String beforeError = input.substring(0, errorIndex).trim();
+            String afterError = input.substring(errorIndex + 2).trim();
+
+            // Extract error file name (first word after 2>)
+            String[] errorParts = afterError.split("\\s+", 2);
+            errorFile = errorParts[0];
+
+            // Reconstruct command without 2> part
+            command = beforeError;
+            if (errorParts.length > 1) {
+                command += " " + errorParts[1];
+            }
         }
 
-        int outputIndex = input.indexOf("1>");
+        // Handle 1> or > (stdout redirection)
+        int outputIndex = command.indexOf("1>");
         if (outputIndex == -1) {
-            outputIndex = input.indexOf(">");
+            outputIndex = command.indexOf(">");
             if (outputIndex != -1) {
-                command = input.substring(0, outputIndex).trim();
-                outputFile = input.substring(outputIndex + 1).trim();
+                String beforeOutput = command.substring(0, outputIndex).trim();
+                String afterOutput = command.substring(outputIndex + 1).trim();
+
+                // Extract output file name (first word after >)
+                String[] outputParts = afterOutput.split("\\s+", 2);
+                outputFile = outputParts[0];
+
+                // Reconstruct command without > part
+                command = beforeOutput;
+                if (outputParts.length > 1) {
+                    command += " " + outputParts[1];
+                }
             }
         } else {
-            command = input.substring(0, outputIndex).trim();
-            outputFile = input.substring(outputIndex + 2).trim();
+            String beforeOutput = command.substring(0, outputIndex).trim();
+            String afterOutput = command.substring(outputIndex + 2).trim();
+
+            // Extract output file name (first word after 1>)
+            String[] outputParts = afterOutput.split("\\s+", 2);
+            outputFile = outputParts[0];
+
+            // Reconstruct command without 1> part
+            command = beforeOutput;
+            if (outputParts.length > 1) {
+                command += " " + outputParts[1];
+            }
         }
 
-        return new String[] { command, outputFile, errorFile };
+        return new String[] { command.trim(), outputFile, errorFile };
     }
 
     private static void handleTypeCommand(
@@ -155,7 +196,7 @@ public class Main {
         if (targetDir.exists() && targetDir.isDirectory()) {
             currentDir = targetDir.getCanonicalFile();
         } else {
-            System.out.println("cd: " + path + ": No such file or directory");
+            System.err.println("cd: " + path + ": No such file or directory");
         }
     }
 
@@ -175,43 +216,90 @@ public class Main {
             ProcessBuilder builder = new ProcessBuilder(fullCommand);
             builder.directory(currentDir);
 
-            // Handle redirection
+            // Handle stdout redirection
             if (isRedirect && outputFileName != null) {
                 builder.redirectOutput(new File(outputFileName));
             }
 
+            // Handle stderr redirection
             if (isErrorRedirect && errorFileName != null) {
                 builder.redirectError(new File(errorFileName));
             }
 
             // Only redirect error stream to output if we're not doing explicit redirection
-            // and not using 1> (which should only redirect stdout)
             if (!isRedirect && !isErrorRedirect) {
                 builder.redirectErrorStream(true);
             }
 
             Process process = builder.start();
 
-            // Only read output if we're not redirecting stdout
+            // Read stdout if not redirected
             if (!isRedirect) {
                 Scanner outputScanner = new Scanner(process.getInputStream());
                 while (outputScanner.hasNextLine()) {
                     System.out.println(outputScanner.nextLine());
                 }
+                outputScanner.close();
             }
 
-            // If we're not redirecting stderr, we need to read it separately
+            // Read stderr if not redirected but stdout is redirected
             if (!isErrorRedirect && isRedirect) {
                 Scanner errorScanner = new Scanner(process.getErrorStream());
                 while (errorScanner.hasNextLine()) {
-                    System.out.println(errorScanner.nextLine());
+                    String errorLine = errorScanner.nextLine();
+                    // Transform error message format
+                    errorLine = transformErrorMessage(command, errorLine);
+                    System.err.println(errorLine);
+                }
+                errorScanner.close();
+            }
+
+            // Read and transform stderr if redirected
+            if (isErrorRedirect && errorFileName != null && !isRedirect) {
+                Scanner errorScanner = new Scanner(process.getErrorStream());
+                StringBuilder errorContent = new StringBuilder();
+                while (errorScanner.hasNextLine()) {
+                    String errorLine = errorScanner.nextLine();
+                    // Transform error message format
+                    errorLine = transformErrorMessage(command, errorLine);
+                    if (errorContent.length() > 0) {
+                        errorContent.append("\n");
+                    }
+                    errorContent.append(errorLine);
+                }
+                errorScanner.close();
+
+                if (errorContent.length() > 0) {
+                    writeToFile(errorFileName, errorContent.toString());
                 }
             }
 
             process.waitFor();
         } catch (IOException | InterruptedException e) {
-            System.out.println(command + ": No such file or directory");
+            String errorMsg = command + ": No such file or directory";
+            if (isErrorRedirect && errorFileName != null) {
+                writeToFile(errorFileName, errorMsg);
+            } else {
+                System.err.println(errorMsg);
+            }
         }
+    }
+
+    private static String transformErrorMessage(
+        String command,
+        String errorLine
+    ) {
+        // Transform "ls: cannot access 'filename': No such file or directory"
+        // to "ls: filename: No such file or directory"
+        if (errorLine.contains("cannot access")) {
+            String pattern = command + ": cannot access '([^']+)': (.+)";
+            if (errorLine.matches(pattern)) {
+                String filename = errorLine.replaceAll(pattern, "$1");
+                String errorType = errorLine.replaceAll(pattern, "$2");
+                return command + ": " + filename + ": " + errorType;
+            }
+        }
+        return errorLine;
     }
 
     private static void writeToFile(String fileName, String content) {
