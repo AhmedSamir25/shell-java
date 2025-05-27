@@ -8,7 +8,7 @@ public class Main {
     private static File currentDir;
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = { "echo", "exit", "type", "pwd", "cd", "cat" };
+        String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
         Scanner scanner = new Scanner(System.in);
         currentDir = new File(System.getProperty("user.dir"));
 
