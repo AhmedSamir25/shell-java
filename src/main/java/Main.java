@@ -317,7 +317,7 @@ public class Main {
 
     private static void readToFile(String fileName) {
         try {
-            System.out.println("this is file name" + fileName);
+            // System.out.println("this is file name" + fileName);
             File myObj = new File(fileName);
             Scanner myReader = new Scanner(myObj);
             while (myReader.hasNextLine()) {
@@ -326,8 +326,8 @@ public class Main {
             }
             myReader.close();
         } catch (FileNotFoundException e) {
-            System.out.println("An error occurred.");
-            e.printStackTrace();
+            System.out.println(fileName + " cannot be found");
+            // e.printStackTrace();
         }
     }
 
