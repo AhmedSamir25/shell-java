@@ -6,7 +6,7 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
+        String[] shellType = { "echo", "exit", "type", "pwd", "cd", "cat" };
         Scanner scanner = new Scanner(System.in);
         File currentDir = new File(System.getProperty("user.dir"));
 
@@ -175,31 +175,46 @@ public class Main {
             ProcessBuilder builder = new ProcessBuilder(fullCommand);
             builder.directory(currentDir);
 
-            if (isRedirect || isErrorRedirect) {
-                if (isRedirect && outputFileName != null) {
-                    builder.redirectOutput(new File(outputFileName));
-                }
-                if (isErrorRedirect && errorFileName != null) {
-                    builder.redirectError(new File(errorFileName));
-                } else if (isRedirect && outputFileName != null) {
-                    builder.redirectErrorStream(true);
-                }
-            } else {
+            // Handle redirection
+            if (isRedirect && outputFileName != null) {
+                builder.redirectOutput(new File(outputFileName));
+            }
+
+            if (isErrorRedirect && errorFileName != null) {
+                builder.redirectError(new File(errorFileName));
+            }
+
+            // Only redirect error stream to output if we're not doing explicit redirection
+            // and not using 1> (which should only redirect stdout)
+            if (!isRedirect && !isErrorRedirect) {
                 builder.redirectErrorStream(true);
             }
 
             Process process = builder.start();
 
-            if (!isRedirect && !isErrorRedirect) {
+            // Only read output if we're not redirecting stdout
+            if (!isRedirect) {
                 Scanner outputScanner = new Scanner(process.getInputStream());
                 while (outputScanner.hasNextLine()) {
                     System.out.println(outputScanner.nextLine());
                 }
             }
 
+            // If we're not redirecting stderr, we need to read it separately
+            if (!isErrorRedirect && isRedirect) {
+                Scanner errorScanner = new Scanner(process.getErrorStream());
+                while (errorScanner.hasNextLine()) {
+                    System.out.println(errorScanner.nextLine());
+                }
+            }
+
             process.waitFor();
         } catch (IOException | InterruptedException e) {
-            System.out.println(command + ": failed to execute");
+            System.out.println(
+                command +
+                ": nonexistent" +
+                ": failed to execuNo such file or directory"
+            );
         }
     }
 
