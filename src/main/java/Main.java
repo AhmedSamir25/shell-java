@@ -5,10 +5,12 @@ import java.util.*;
 
 public class Main {
 
+    private static File currentDir;
+
     public static void main(String[] args) throws Exception {
         String[] shellType = { "echo", "exit", "type", "pwd", "cd", "cat" };
         Scanner scanner = new Scanner(System.in);
-        File currentDir = new File(System.getProperty("user.dir"));
+        currentDir = new File(System.getProperty("user.dir"));
 
         while (true) {
             System.out.print("$ ");
@@ -66,7 +68,7 @@ public class Main {
             }
 
             if (command.equals("cd")) {
-                handleCdCommand(arguments, currentDir);
+                handleCdCommand(arguments);
                 continue;
             }
 
@@ -75,7 +77,6 @@ public class Main {
                 handleExternalCommand(
                     command,
                     arguments,
-                    currentDir,
                     isRedirect,
                     outputFileName,
                     isErrorRedirect,
@@ -134,13 +135,13 @@ public class Main {
         }
     }
 
-    private static void handleCdCommand(
-        List<String> arguments,
-        File currentDir
-    ) throws IOException {
+    private static void handleCdCommand(List<String> arguments)
+        throws IOException {
         if (arguments.isEmpty() || arguments.get(0).equals("~")) {
             String homePath = System.getenv("HOME");
-            currentDir = new File(homePath);
+            if (homePath != null) {
+                currentDir = new File(homePath);
+            }
             return;
         }
 
@@ -154,14 +155,13 @@ public class Main {
         if (targetDir.exists() && targetDir.isDirectory()) {
             currentDir = targetDir.getCanonicalFile();
         } else {
-            System.out.println(path + ": No such file or directory");
+            System.out.println("cd: " + path + ": No such file or directory");
         }
     }
 
     private static void handleExternalCommand(
         String command,
         List<String> arguments,
-        File currentDir,
         boolean isRedirect,
         String outputFileName,
         boolean isErrorRedirect,
@@ -210,11 +210,7 @@ public class Main {
 
             process.waitFor();
         } catch (IOException | InterruptedException e) {
-            System.out.println(
-                command +
-                ": nonexistent" +
-                ": failed to execuNo such file or directory"
-            );
+            System.out.println(command + ": No such file or directory");
         }
     }
 
