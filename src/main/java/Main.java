@@ -39,7 +39,6 @@ public class Main {
                     } else if (c == '\t') {
                         String completed = handleTabCompletion(tempString);
                         if (!completed.equals(tempString)) {
-                            // مسح السطر الحالي وإعادة كتابة النص المكتمل
                             System.out.print("\r$ " + completed);
                             tempString = completed;
                         }
@@ -48,7 +47,7 @@ public class Main {
                             System.out.print("\b \b");
                             tempString = tempString.substring(0, tempString.length() - 1);
                         }
-                    } else if (c >= 32 && c <= 126) { // الأحرف المرئية فقط
+                    } else if (c >= 32 && c <= 126) {
                         System.out.print(c);
                         tempString += c;
                     } else if (c == 3) { // Ctrl+C
@@ -64,7 +63,6 @@ public class Main {
         } catch (Exception e) {
             System.err.println("خطأ في تهيئة Terminal: " + e.getMessage());
         } finally {
-            // إعادة تعيين Terminal إلى الوضع العادي
             try {
                 ProcessBuilder resetBuilder = new ProcessBuilder(
                         "/bin/sh", "-c", "stty echo icanon < /dev/tty");
@@ -72,7 +70,6 @@ public class Main {
                 Process resetProcess = resetBuilder.start();
                 resetProcess.waitFor();
             } catch (Exception e) {
-                // تجاهل الأخطاء عند إعادة التعيين
             }
         }
     }
@@ -87,17 +84,14 @@ public class Main {
         String lastToken = tokens[tokens.length - 1];
         String[] paths = pathEnv.split(":");
 
-        // استخدام Set لإزالة التكرارات
         Set<String> matchesSet = new LinkedHashSet<>();
 
-        // البحث في الأوامر المدمجة
         for (String cmd : SHELL_COMMANDS) {
             if (cmd.startsWith(lastToken)) {
                 matchesSet.add(cmd);
             }
         }
 
-        // البحث في ملفات PATH
         for (String path : paths) {
             File dir = new File(path);
             if (dir.exists() && dir.isDirectory()) {
@@ -114,7 +108,6 @@ public class Main {
 
         List<String> matches = new ArrayList<>(matchesSet);
         Collections.sort(matches);
-        // إكمال مباشر لو فيه تطابق واحد
         if (matches.size() == 1) {
             String completion = matches.get(0);
             String prefix = "";
@@ -126,17 +119,27 @@ public class Main {
             return prefix + completion + " ";
         }
 
-        // عرض الخيارات لو فيه أكتر من تطابق
         else if (matches.size() > 1) {
-            System.out.print("\u0007");
-            System.out.println();
-//            System.out.println("الخيارات المتاحة:");
-            for (String match : matches) {
-                System.out.print(match + "  ");
+            String lcp = longestCommonPrefix(matches);
+            if (!lcp.equals(lastToken)) {
+                String prefix = "";
+                int lastTokenIndex = currentInput.lastIndexOf(lastToken);
+                if (lastTokenIndex > 0) {
+                    prefix = currentInput.substring(0, lastTokenIndex);
+                    if (!prefix.endsWith(" ")) prefix += " ";
+                }
+                return prefix + lcp;
+            } else {
+                System.out.print("\u0007");
+                System.out.println();
+                for (String match : matches) {
+                    System.out.print(match + "  ");
+                }
+                System.out.println();
+                System.out.print("$ " + currentInput);
             }
-            System.out.println();
-            System.out.print("$ " + currentInput); // إعادة عرض السطر
         }
+
         else {
             System.out.print("\u0007"); // Bell sound
         }
@@ -144,6 +147,18 @@ public class Main {
         return currentInput;
     }
 
+    private static String longestCommonPrefix(List<String> strings) {
+        if (strings == null || strings.isEmpty()) return "";
+
+        String prefix = strings.get(0);
+        for (int i = 1; i < strings.size(); i++) {
+            while (!strings.get(i).startsWith(prefix)) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+                if (prefix.isEmpty()) return "";
+            }
+        }
+        return prefix;
+    }
 
     private static void parseCommand(String input) {
         try {
