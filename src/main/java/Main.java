@@ -113,7 +113,7 @@ public class Main {
         }
 
         List<String> matches = new ArrayList<>(matchesSet);
-
+        Collections.sort(matches);
         // إكمال مباشر لو فيه تطابق واحد
         if (matches.size() == 1) {
             String completion = matches.get(0);
@@ -127,15 +127,16 @@ public class Main {
         }
 
         // عرض الخيارات لو فيه أكتر من تطابق
-//        else if (matches.size() > 1) {
-//            System.out.println();
+        else if (matches.size() > 1) {
+            System.out.print("\u0007");
+            System.out.println();
 //            System.out.println("الخيارات المتاحة:");
-//            for (String match : matches) {
-//                System.out.print(match + "  ");
-//            }
-//            System.out.println();
-//            System.out.print("$ " + currentInput); // إعادة عرض السطر
-//        }
+            for (String match : matches) {
+                System.out.print(match + "  ");
+            }
+            System.out.println();
+            System.out.print("$ " + currentInput); // إعادة عرض السطر
+        }
         else {
             System.out.print("\u0007"); // Bell sound
         }
