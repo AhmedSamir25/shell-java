@@ -7,7 +7,7 @@ import java.util.*;
 public class Main {
 
     private static Path currentDir;
-    private static final String[] SHELL_COMMANDS = { "echo", "exit", "type", "pwd", "cd", };
+    private static final String[] SHELL_COMMANDS = { "echo", "exit", "type", "pwd", "cd", "history" };
     private static boolean running = true;
     static String pathEnv = System.getenv("PATH");
     public static void main(String[] args) throws Exception {
