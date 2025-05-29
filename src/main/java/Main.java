@@ -167,17 +167,9 @@ public class Main {
 
             if (partsList.isEmpty()) return;
 
-            int pipeIndex = partsList.indexOf("|");
-            if (pipeIndex > 0 && pipeIndex < partsList.size() - 1) {
-                List<String> leftCmd = partsList.subList(0, pipeIndex);
-                List<String> rightCmd = partsList.subList(pipeIndex + 1, partsList.size());
-
-                Optional<Path> leftExec = findExecutableInPath(leftCmd.get(0));
-                Optional<Path> rightExec = findExecutableInPath(rightCmd.get(0));
-                if (leftExec.isPresent() && rightExec.isPresent()) {
-                    handlePipeline(leftCmd, rightCmd, streams);
-                    return;
-                }
+            if (partsList.contains("|")) {
+                handlePipeline(partsList, streams);
+                return;
             }
 
             String command = partsList.get(0);
@@ -365,47 +357,205 @@ public class Main {
         }
     }
 
-    private static void handlePipeline(List<String> leftCmd, List<String> rightCmd, Streams streams) {
-        try {
-            ProcessBuilder leftBuilder = new ProcessBuilder(leftCmd);
-            leftBuilder.directory(currentDir.toFile());
-            leftBuilder.redirectErrorStream(true);
-
-            ProcessBuilder rightBuilder = new ProcessBuilder(rightCmd);
-            rightBuilder.directory(currentDir.toFile());
-            rightBuilder.redirectErrorStream(true);
-
-            Process left = leftBuilder.start();
-            Process right = rightBuilder.start();
-
-            Thread pipeThread = new Thread(() -> {
-                try (InputStream in = left.getInputStream();
-                     OutputStream out = right.getOutputStream()) {
-                    byte[] buffer = new byte[8192];
-                    int len;
-                    while ((len = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, len);
-                        out.flush();
-                    }
-                    out.close();
-                } catch (IOException ignored) {}
-            });
-            pipeThread.start();
-
-            try (InputStream in = right.getInputStream()) {
-                byte[] buffer = new byte[8192];
-                int len;
-                while ((len = in.read(buffer)) != -1) {
-                    System.out.write(buffer, 0, len);
-                    System.out.flush();
-                }
+    private static void handlePipeline(List<String> allParts, Streams streams) {
+        List<List<String>> commands = new ArrayList<>();
+        List<String> current = new ArrayList<>();
+        for (String part : allParts) {
+            if (part.equals("|")) {
+                commands.add(current);
+                current = new ArrayList<>();
+            } else {
+                current.add(part);
             }
+        }
+        commands.add(current);
 
-            pipeThread.join();
-            left.waitFor();
-            right.waitFor();
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Pipeline error: " + e.getMessage());
+        if (commands.size() == 2) {
+            List<String> cmd1 = commands.get(0);
+            List<String> cmd2 = commands.get(1);
+            boolean isBuiltin1 = Arrays.asList(SHELL_COMMANDS).contains(cmd1.get(0));
+            boolean isBuiltin2 = Arrays.asList(SHELL_COMMANDS).contains(cmd2.get(0));
+            PrintStream originalOut = System.out;
+            PrintStream originalErr = System.err;
+            InputStream originalIn = System.in;
+
+            try {
+                if (isBuiltin1 && isBuiltin2) {
+                    PipedOutputStream pipeOut = new PipedOutputStream();
+                    PipedInputStream pipeIn = new PipedInputStream(pipeOut);
+
+                    Thread t1 = new Thread(() -> {
+                        try {
+                            System.setOut(new PrintStream(pipeOut, true));
+                            runBuiltin(cmd1, new Printer(System.out, System.err));
+                            System.out.flush();
+                            pipeOut.close();
+                        } catch (Exception ignored) {
+                        } finally {
+                            System.setOut(originalOut);
+                        }
+                    });
+
+                    Thread t2 = new Thread(() -> {
+                        try {
+                            System.setIn(pipeIn);
+                            runBuiltin(cmd2, new Printer(originalOut, originalErr));
+                        } catch (Exception ignored) {
+                        } finally {
+                            System.setIn(originalIn);
+                        }
+                    });
+
+                    t1.start();
+                    t2.start();
+                    t1.join();
+                    t2.join();
+                    return;
+                } else if (isBuiltin1) {
+                    PipedOutputStream pipeOut = new PipedOutputStream();
+                    PipedInputStream pipeIn = new PipedInputStream(pipeOut);
+
+                    Thread t1 = new Thread(() -> {
+                        try {
+                            System.setOut(new PrintStream(pipeOut, true));
+                            runBuiltin(cmd1, new Printer(System.out, System.err));
+                            System.out.flush();
+                            pipeOut.close();
+                        } catch (Exception ignored) {
+                        } finally {
+                            System.setOut(originalOut);
+                        }
+                    });
+
+                    t1.start();
+
+                    ProcessBuilder pb2 = new ProcessBuilder(cmd2);
+                    pb2.directory(currentDir.toFile());
+                    pb2.redirectInput(ProcessBuilder.Redirect.PIPE);
+                    Process p2 = pb2.start();
+
+                    Thread pipeToProcess = new Thread(() -> {
+                        try (OutputStream out = p2.getOutputStream()) {
+                            pipeIn.transferTo(out);
+                        } catch (Exception ignored) {}
+                    });
+                    pipeToProcess.start();
+
+                    Thread p2ErrThread = new Thread(() -> {
+                        try (InputStream err = p2.getErrorStream()) {
+                            err.transferTo(System.err);
+                        } catch (Exception ignored) {}
+                    });
+                    p2ErrThread.start();
+
+                    try (InputStream out = p2.getInputStream()) {
+                        out.transferTo(System.out);
+                    }
+
+                    t1.join();
+                    pipeToProcess.join();
+                    p2.waitFor();
+                    p2ErrThread.join();
+                    return;
+                } else if (isBuiltin2) {
+                    ProcessBuilder pb1 = new ProcessBuilder(cmd1);
+                    pb1.directory(currentDir.toFile());
+                    pb1.redirectOutput(ProcessBuilder.Redirect.PIPE);
+                    Process p1 = pb1.start();
+
+                    PipedOutputStream pipeOut = new PipedOutputStream();
+                    PipedInputStream pipeIn = new PipedInputStream(pipeOut);
+
+                    Thread processToPipe = new Thread(() -> {
+                        try (InputStream in = p1.getInputStream()) {
+                            in.transferTo(pipeOut);
+                            pipeOut.close();
+                        } catch (Exception ignored) {}
+                    });
+                    processToPipe.start();
+
+                    Thread p1ErrThread = new Thread(() -> {
+                        try (InputStream err = p1.getErrorStream()) {
+                            err.transferTo(System.err);
+                        } catch (Exception ignored) {}
+                    });
+                    p1ErrThread.start();
+
+                    Thread t2 = new Thread(() -> {
+                        try {
+                            System.setIn(pipeIn);
+                            runBuiltin(cmd2, new Printer(originalOut, originalErr));
+                        } catch (Exception ignored) {
+                        } finally {
+                            System.setIn(originalIn);
+                        }
+                    });
+                    t2.start();
+
+                    processToPipe.join();
+                    t2.join();
+                    p1.waitFor();
+                    p1ErrThread.join();
+                    return;
+                } else {
+                    ProcessBuilder pb1 = new ProcessBuilder(cmd1);
+                    pb1.directory(currentDir.toFile());
+                    ProcessBuilder pb2 = new ProcessBuilder(cmd2);
+                    pb2.directory(currentDir.toFile());
+                    List<Process> processes = ProcessBuilder.startPipeline(List.of(pb1, pb2));
+                    Process p1 = processes.get(0);
+                    Process p2 = processes.get(1);
+
+                    Thread p1ErrThread = new Thread(() -> {
+                        try (InputStream err = p1.getErrorStream()) {
+                            err.transferTo(System.err);
+                        } catch (Exception ignored) {}
+                    });
+                    p1ErrThread.start();
+
+                    Thread p2ErrThread = new Thread(() -> {
+                        try (InputStream err = p2.getErrorStream()) {
+                            err.transferTo(System.err);
+                        } catch (Exception ignored) {}
+                    });
+                    p2ErrThread.start();
+
+                    try (InputStream out = p2.getInputStream()) {
+                        out.transferTo(System.out);
+                    }
+
+                    p1ErrThread.join();
+                    p2ErrThread.join();
+                    p1.waitFor();
+                    p2.waitFor();
+                    return;
+                }
+            } catch (Exception e) {
+                System.err.println("Pipeline error: " + e.getMessage());
+            }
+        } else {
+        }
+    }
+
+    private static void runBuiltin(List<String> cmd, Printer printer) {
+        String command = cmd.get(0);
+        List<String> arguments = cmd.size() > 1 ? cmd.subList(1, cmd.size()) : Collections.emptyList();
+
+        if (command.equals("type")) {
+            handleTypeCommand(arguments, printer);
+        } else if (command.equals("echo")) {
+            String result_echo = processEchoArguments(arguments);
+            printer.out.println(result_echo);
+        } else if (command.equals("pwd")) {
+            printer.out.println(currentDir.toString());
+        } else if (command.equals("cd")) {
+            try {
+                handleCdCommand(arguments, printer);
+            } catch (IOException e) {
+                printer.err.println("cd: " + e.getMessage());
+            }
+        } else if (command.equals("cat")) {
+            handleCatCommand(arguments, printer);
         }
     }
 
