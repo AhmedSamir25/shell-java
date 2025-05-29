@@ -225,7 +225,7 @@ public class Main {
             }
 
             if (command.equals("history")) {
-                handleHistoryCommand(printer);
+                handleHistoryCommand(arguments, printer);
                 return;
             }
 
@@ -562,12 +562,24 @@ public class Main {
         } else if (command.equals("cat")) {
             handleCatCommand(arguments, printer);
         } else if (command.equals("history")) {
-            handleHistoryCommand(printer);
+             handleHistoryCommand(arguments, printer);
         }
     }
 
-    private static void handleHistoryCommand(Printer printer) {
-        for (int i = 0; i < commandHistory.size(); i++) {
+    private static void handleHistoryCommand(List<String> arguments, Printer printer) {
+        int limit = commandHistory.size();
+        
+        if (!arguments.isEmpty()) {
+            try {
+                limit = Integer.parseInt(arguments.get(0));
+            } catch (NumberFormatException e) {
+                printer.err.println("history: numeric argument required");
+                return;
+            }
+        }
+        
+        int start = Math.max(0, commandHistory.size() - limit);
+        for (int i = start; i < commandHistory.size(); i++) {
             printer.out.printf("%5d  %s%n", i + 1, commandHistory.get(i));
         }
     }
