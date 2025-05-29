@@ -13,7 +13,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         currentDir = Paths.get("").toAbsolutePath();
 
-
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     "/bin/sh", "-c", "stty -echo -icanon min 1 < /dev/tty");
@@ -42,7 +41,7 @@ public class Main {
                             System.out.print("\r$ " + completed);
                             tempString = completed;
                         }
-                    } else if (c == '\b' || c == 127) { // Backspace
+                    } else if (c == '\b' || c == 127) {
                         if (tempString.length() > 0) {
                             System.out.print("\b \b");
                             tempString = tempString.substring(0, tempString.length() - 1);
@@ -50,10 +49,10 @@ public class Main {
                     } else if (c >= 32 && c <= 126) {
                         System.out.print(c);
                         tempString += c;
-                    } else if (c == 3) { // Ctrl+C
+                    } else if (c == 3) {
                         System.out.println();
                         break;
-                    } else if (c == 4) { // Ctrl+D
+                    } else if (c == 4) {
                         running = false;
                         break;
                     }
@@ -77,7 +76,7 @@ public class Main {
     private static String handleTabCompletion(String currentInput) {
         String[] tokens = currentInput.trim().split("\\s+");
         if (tokens.length == 0 || currentInput.trim().isEmpty()) {
-            System.out.print("\u0007"); // Bell sound
+            System.out.print("\u0007");
             return currentInput;
         }
 
@@ -141,7 +140,7 @@ public class Main {
         }
 
         else {
-            System.out.print("\u0007"); // Bell sound
+            System.out.print("\u0007");
         }
 
         return currentInput;
@@ -168,6 +167,19 @@ public class Main {
 
             if (partsList.isEmpty()) return;
 
+            int pipeIndex = partsList.indexOf("|");
+            if (pipeIndex > 0 && pipeIndex < partsList.size() - 1) {
+                List<String> leftCmd = partsList.subList(0, pipeIndex);
+                List<String> rightCmd = partsList.subList(pipeIndex + 1, partsList.size());
+
+                Optional<Path> leftExec = findExecutableInPath(leftCmd.get(0));
+                Optional<Path> rightExec = findExecutableInPath(rightCmd.get(0));
+                if (leftExec.isPresent() && rightExec.isPresent()) {
+                    handlePipeline(leftCmd, rightCmd, streams);
+                    return;
+                }
+            }
+
             String command = partsList.get(0);
             List<String> arguments = partsList.subList(1, partsList.size());
 
@@ -176,7 +188,6 @@ public class Main {
                 return;
             }
 
-            // Handle exit with any number
             if (command.equals("exit")) {
                 int exitCode = 0;
                 if (!arguments.isEmpty()) {
@@ -301,7 +312,6 @@ public class Main {
         try {
             ProcessBuilder builder = new ProcessBuilder(commands);
             builder.directory(currentDir.toFile());
-            builder.inheritIO();
 
             if (streams.output() != null) {
                 if (streams.output().getParentFile() != null) {
@@ -313,6 +323,8 @@ public class Main {
                 } else {
                     builder.redirectOutput(streams.output());
                 }
+            } else {
+                builder.redirectOutput(ProcessBuilder.Redirect.PIPE);
             }
             if (streams.err() != null) {
                 if (streams.err().getParentFile() != null) {
@@ -324,12 +336,76 @@ public class Main {
                 } else {
                     builder.redirectError(streams.err());
                 }
+            } else {
+                builder.redirectError(ProcessBuilder.Redirect.PIPE);
             }
 
             Process process = builder.start();
+
+            if (streams.output() == null || streams.err() == null) {
+                try (InputStream in = process.getInputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = in.read(buffer)) != -1) {
+                        System.out.write(buffer, 0, len);
+                    }
+                }
+                try (InputStream err = process.getErrorStream()) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = err.read(buffer)) != -1) {
+                        System.err.write(buffer, 0, len);
+                    }
+                }
+            }
+
             process.waitFor();
         } catch (IOException | InterruptedException e) {
             System.err.println(commands.get(0) + ": No such file or directory");
+        }
+    }
+
+    private static void handlePipeline(List<String> leftCmd, List<String> rightCmd, Streams streams) {
+        try {
+            ProcessBuilder leftBuilder = new ProcessBuilder(leftCmd);
+            leftBuilder.directory(currentDir.toFile());
+            leftBuilder.redirectErrorStream(true);
+
+            ProcessBuilder rightBuilder = new ProcessBuilder(rightCmd);
+            rightBuilder.directory(currentDir.toFile());
+            rightBuilder.redirectErrorStream(true);
+
+            Process left = leftBuilder.start();
+            Process right = rightBuilder.start();
+
+            Thread pipeThread = new Thread(() -> {
+                try (InputStream in = left.getInputStream();
+                     OutputStream out = right.getOutputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, len);
+                        out.flush();
+                    }
+                    out.close();
+                } catch (IOException ignored) {}
+            });
+            pipeThread.start();
+
+            try (InputStream in = right.getInputStream()) {
+                byte[] buffer = new byte[8192];
+                int len;
+                while ((len = in.read(buffer)) != -1) {
+                    System.out.write(buffer, 0, len);
+                    System.out.flush();
+                }
+            }
+
+            pipeThread.join();
+            left.waitFor();
+            right.waitFor();
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Pipeline error: " + e.getMessage());
         }
     }
 
@@ -369,6 +445,19 @@ public class Main {
                             result.add(currentToken.toString());
                             currentToken = new StringBuilder();
                         }
+                    } else {
+                        currentToken.append(c);
+                    }
+                }
+                case '|' -> {
+                    if (backslash) {
+                        currentToken.append(c);
+                    } else if (quote == null) {
+                        if (!currentToken.isEmpty()) {
+                            result.add(currentToken.toString());
+                            currentToken = new StringBuilder();
+                        }
+                        result.add("|");
                     } else {
                         currentToken.append(c);
                     }
