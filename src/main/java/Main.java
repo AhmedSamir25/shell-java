@@ -1,9 +1,4 @@
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -12,31 +7,126 @@ import java.util.*;
 public class Main {
 
     private static Path currentDir;
+    private static final String[] SHELL_COMMANDS = { "echo", "exit", "type", "pwd", "cd", };
+    private static boolean running = true;
 
     public static void main(String[] args) throws Exception {
-        String[] shellType = { "echo", "exit", "type", "pwd", "cd" };
-        Scanner scanner = new Scanner(System.in);
         currentDir = Paths.get("").toAbsolutePath();
 
-        while (true) {
-            System.out.print("$ ");
-            if (!scanner.hasNextLine()) {
-                break;
+
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    "/bin/sh", "-c", "stty -echo -icanon min 1 < /dev/tty");
+            processBuilder.directory(new File("").getCanonicalFile());
+            Process rawMode = processBuilder.start();
+            rawMode.waitFor();
+
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+
+            while (running) {
+                String tempString = "";
+                System.out.print("$ ");
+
+                while (true) {
+                    char c = (char) reader.read();
+
+                    if (c == '\n' || c == '\r') {
+                        System.out.print('\n');
+                        if (!tempString.trim().isEmpty()) {
+                            parseCommand(tempString.trim());
+                        }
+                        break;
+                    } else if (c == '\t') {
+                        String completed = handleTabCompletion(tempString);
+                        if (!completed.equals(tempString)) {
+                            System.out.print("\r$ " + completed);
+                            tempString = completed;
+                        }
+                    } else if (c == '\b' || c == 127) { // Backspace
+                        if (tempString.length() > 0) {
+                            System.out.print("\b \b");
+                            tempString = tempString.substring(0, tempString.length() - 1);
+                        }
+                    } else if (c >= 32 && c <= 126) {
+                        System.out.print(c);
+                        tempString += c;
+                    } else if (c == 3) {
+                        System.out.println();
+                        break;
+                    } else if (c == 4) {
+                        running = false;
+                        break;
+                    }
+                }
             }
 
-            String input = scanner.nextLine().trim();
-            if (input.isEmpty()) continue;
+        } catch (Exception e) {
+            System.err.println("خطأ في تهيئة Terminal: " + e.getMessage());
+        } finally {
 
+            try {
+                ProcessBuilder resetBuilder = new ProcessBuilder(
+                        "/bin/sh", "-c", "stty echo icanon < /dev/tty");
+                resetBuilder.directory(new File("").getCanonicalFile());
+                Process resetProcess = resetBuilder.start();
+                resetProcess.waitFor();
+            } catch (Exception e) {
+
+            }
+        }
+    }
+
+    private static String handleTabCompletion(String currentInput) {
+        String[] tokens = currentInput.trim().split("\\s+");
+        if (tokens.length == 0 || currentInput.trim().isEmpty()) {
+            return currentInput;
+        }
+
+        String lastToken = tokens[tokens.length - 1];
+        List<String> matches = new ArrayList<>();
+        for (String cmd : SHELL_COMMANDS) {
+            if (cmd.startsWith(lastToken)) {
+                matches.add(cmd);
+            }
+        }
+
+        if (matches.size() == 1) {
+            String completion = matches.get(0);
+            String prefix = "";
+            if (currentInput.lastIndexOf(lastToken) > 0) {
+                prefix = currentInput.substring(0, currentInput.lastIndexOf(lastToken));
+            }
+            return prefix + completion + " ";
+        }
+        // إذا كان هناك عدة تطابقات، اعرضها
+//        else if (matches.size() > 1) {
+//            System.out.println();
+//            System.out.print("الخيارات المتاحة: ");
+//            for (String match : matches) {
+//                System.out.print(match + "  ");
+//            }
+//            System.out.println();
+//            System.out.print("$ " + currentInput);
+//        }
+
+        return currentInput;
+    }
+
+    private static void parseCommand(String input) {
+        try {
             ExtractResult result = extractStreams(tokenize(input));
             List<String> partsList = result.commands();
             Streams streams = result.streams();
 
-            if (partsList.isEmpty()) continue;
+            if (partsList.isEmpty()) return;
 
             String command = partsList.get(0);
             List<String> arguments = partsList.subList(1, partsList.size());
 
-            if (input.equals("exit 0")) break;
+            if (input.equals("exit 0")) {
+                running = false;
+                return;
+            }
 
             // Handle exit with any number
             if (command.equals("exit")) {
@@ -48,35 +138,36 @@ public class Main {
                         exitCode = 0;
                     }
                 }
+                running = false;
                 System.exit(exitCode);
             }
 
             Printer printer = streams.toPrinter(System.out, System.err);
 
             if (command.equals("type")) {
-                handleTypeCommand(arguments, shellType, printer);
-                continue;
+                handleTypeCommand(arguments, printer);
+                return;
             }
 
             if (command.equals("echo")) {
                 String result_echo = processEchoArguments(arguments);
                 printer.out.println(result_echo);
-                continue;
+                return;
             }
 
             if (command.equals("pwd")) {
                 printer.out.println(currentDir.toString());
-                continue;
+                return;
             }
 
             if (command.equals("cd")) {
                 handleCdCommand(arguments, printer);
-                continue;
+                return;
             }
 
             if (command.equals("cat")) {
                 handleCatCommand(arguments, printer);
-                continue;
+                return;
             }
 
             Optional<Path> executablePath = findExecutableInPath(command);
@@ -85,37 +176,31 @@ public class Main {
             } else {
                 printer.err.println(command + ": command not found");
             }
+
+        } catch (Exception e) {
+            System.err.println("خطأ في تنفيذ الأمر: " + e.getMessage());
         }
     }
 
-    private static void handleTypeCommand(
-        List<String> arguments,
-        String[] shellType,
-        Printer printer
-    ) {
+    private static void handleTypeCommand(List<String> arguments, Printer printer) {
         if (arguments.isEmpty()) {
             printer.out.println("Usage: type [command]");
             return;
         }
         String targetCommand = arguments.get(0);
-        if (Arrays.asList(shellType).contains(targetCommand)) {
+        if (Arrays.asList(SHELL_COMMANDS).contains(targetCommand)) {
             printer.out.println(targetCommand + " is a shell builtin");
         } else {
             Optional<Path> path = findExecutableInPath(targetCommand);
             if (path.isPresent()) {
-                printer.out.println(
-                    targetCommand + " is " + path.get().toString()
-                );
+                printer.out.println(targetCommand + " is " + path.get().toString());
             } else {
                 printer.out.println(targetCommand + ": not found");
             }
         }
     }
 
-    private static void handleCdCommand(
-        List<String> arguments,
-        Printer printer
-    ) throws IOException {
+    private static void handleCdCommand(List<String> arguments, Printer printer) throws IOException {
         if (arguments.isEmpty() || arguments.get(0).equals("~")) {
             String homePath = System.getenv("HOME");
             if (homePath != null) {
@@ -134,16 +219,11 @@ public class Main {
         if (Files.exists(targetDir) && Files.isDirectory(targetDir)) {
             currentDir = targetDir;
         } else {
-            printer.err.println(
-                "cd: " + pathStr + ": No such file or directory"
-            );
+            printer.err.println("cd: " + pathStr + ": No such file or directory");
         }
     }
 
-    private static void handleCatCommand(
-        List<String> arguments,
-        Printer printer
-    ) {
+    private static void handleCatCommand(List<String> arguments, Printer printer) {
         if (arguments.isEmpty()) {
             printer.err.println("cat: missing file operand");
             return;
@@ -157,9 +237,7 @@ public class Main {
 
             try {
                 if (!Files.exists(filePath)) {
-                    printer.err.println(
-                        "cat: " + fileName + ": No such file or directory"
-                    );
+                    printer.err.println("cat: " + fileName + ": No such file or directory");
                     continue;
                 }
 
@@ -171,39 +249,30 @@ public class Main {
         }
     }
 
-    private static void handleExternalCommand(
-        List<String> commands,
-        Streams streams
-    ) {
+    private static void handleExternalCommand(List<String> commands, Streams streams) {
         try {
             ProcessBuilder builder = new ProcessBuilder(commands);
             builder.directory(currentDir.toFile());
             builder.inheritIO();
 
             if (streams.output() != null) {
-                // Ensure parent directories exist
                 if (streams.output().getParentFile() != null) {
                     streams.output().getParentFile().mkdirs();
                 }
 
                 if (streams.appendOutput()) {
-                    builder.redirectOutput(
-                        ProcessBuilder.Redirect.appendTo(streams.output())
-                    );
+                    builder.redirectOutput(ProcessBuilder.Redirect.appendTo(streams.output()));
                 } else {
                     builder.redirectOutput(streams.output());
                 }
             }
             if (streams.err() != null) {
-                // Ensure parent directories exist
                 if (streams.err().getParentFile() != null) {
                     streams.err().getParentFile().mkdirs();
                 }
 
                 if (streams.appendErr()) {
-                    builder.redirectError(
-                        ProcessBuilder.Redirect.appendTo(streams.err())
-                    );
+                    builder.redirectError(ProcessBuilder.Redirect.appendTo(streams.err()));
                 } else {
                     builder.redirectError(streams.err());
                 }
@@ -319,30 +388,30 @@ public class Main {
         File output = null;
         File err = null;
         String lastRedirection = null;
-        boolean appendOutput = false; // For output redirection
-        boolean appendErr = false; // For error redirection
+        boolean appendOutput = false;
+        boolean appendErr = false;
 
         for (String command : parts) {
             if (lastRedirection != null) {
                 switch (lastRedirection) {
                     case ">", "1>" -> {
                         output = new File(command);
-                        appendOutput = false; // Overwrite mode
+                        appendOutput = false;
                         lastRedirection = null;
                     }
                     case "2>" -> {
                         err = new File(command);
-                        appendErr = false; // Overwrite mode for stderr
+                        appendErr = false;
                         lastRedirection = null;
                     }
                     case ">>", "1>>" -> {
                         output = new File(command);
-                        appendOutput = true; // Append mode
+                        appendOutput = true;
                         lastRedirection = null;
                     }
                     case "2>>" -> {
                         err = new File(command);
-                        appendErr = true; // Append mode for stderr
+                        appendErr = true;
                         lastRedirection = null;
                     }
                 }
@@ -359,49 +428,37 @@ public class Main {
         }
 
         return new ExtractResult(
-            newCommands,
-            new Streams(null, output, err, appendOutput, appendErr)
+                newCommands,
+                new Streams(null, output, err, appendOutput, appendErr)
         );
     }
 
-    private static record ExtractResult(
-        List<String> commands,
-        Streams streams
-    ) {}
+    private static record ExtractResult(List<String> commands, Streams streams) {}
 
     private static record Streams(
-        File input,
-        File output,
-        File err,
-        boolean appendOutput,
-        boolean appendErr
+            File input,
+            File output,
+            File err,
+            boolean appendOutput,
+            boolean appendErr
     ) {
-        public Printer toPrinter(
-            PrintStream defaultOut,
-            PrintStream defaultErr
-        ) throws IOException {
+        public Printer toPrinter(PrintStream defaultOut, PrintStream defaultErr) throws IOException {
             PrintStream outStream;
             if (output != null) {
-                // Ensure parent directories exist
                 if (output.getParentFile() != null) {
                     output.getParentFile().mkdirs();
                 }
-                outStream = new PrintStream(
-                    new FileOutputStream(output, appendOutput)
-                );
+                outStream = new PrintStream(new FileOutputStream(output, appendOutput));
             } else {
                 outStream = defaultOut;
             }
 
             PrintStream errStream;
             if (err != null) {
-                // Ensure parent directories exist
                 if (err.getParentFile() != null) {
                     err.getParentFile().mkdirs();
                 }
-                errStream = new PrintStream(
-                    new FileOutputStream(err, appendErr)
-                );
+                errStream = new PrintStream(new FileOutputStream(err, appendErr));
             } else {
                 errStream = defaultErr;
             }
