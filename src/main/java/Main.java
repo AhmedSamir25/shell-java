@@ -10,6 +10,7 @@ public class Main {
     private static boolean running = true;
     static String pathEnv = System.getenv("PATH");
     private static final List<String> commandHistory = new ArrayList<>();
+    private static int historyIndex = -1;  // أضف هذا المتغير العام
 
     public static void main(String[] args) throws Exception {
         currentDir = Paths.get("").toAbsolutePath();
@@ -26,9 +27,45 @@ public class Main {
             while (running) {
                 String tempString = "";
                 System.out.print("$ ");
+                historyIndex = -1;  // إعادة تعيين مؤشر التاريخ
 
                 while (true) {
                     char c = (char) reader.read();
+                    
+                    if (c == 27) {
+                        char next = (char) reader.read();
+                        if (next == '[') {
+                            char arrow = (char) reader.read();
+                            if (arrow == 'A') {
+                                System.out.print("\r$ " + " ".repeat(tempString.length()) + "\r$ ");
+                                
+                                if (!commandHistory.isEmpty()) {
+                                    if (historyIndex == -1) {
+                                        historyIndex = commandHistory.size() - 1;
+                                    } else {
+                                        historyIndex = Math.max(0, historyIndex - 1);
+                                    }
+                                    tempString = commandHistory.get(historyIndex);
+                                    System.out.print(tempString);
+                                }
+                                continue;
+                            } else if (arrow == 'B') {
+                                System.out.print("\r$ " + " ".repeat(tempString.length()) + "\r$ ");
+                                
+                                if (!commandHistory.isEmpty() && historyIndex != -1) {
+                                    historyIndex++;
+                                    if (historyIndex >= commandHistory.size()) {
+                                        tempString = "";
+                                        historyIndex = -1;
+                                    } else {
+                                        tempString = commandHistory.get(historyIndex);
+                                    }
+                                }
+                                System.out.print(tempString);
+                                continue;
+                            }
+                        }
+                    }
 
                     if (c == '\n' || c == '\r') {
                         System.out.print('\n');
