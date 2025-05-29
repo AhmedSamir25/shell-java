@@ -9,7 +9,7 @@ public class Main {
     private static Path currentDir;
     private static final String[] SHELL_COMMANDS = { "echo", "exit", "type", "pwd", "cd", };
     private static boolean running = true;
-
+    static String pathEnv = System.getenv("PATH");
     public static void main(String[] args) throws Exception {
         currentDir = Paths.get("").toAbsolutePath();
 
@@ -80,47 +80,69 @@ public class Main {
     private static String handleTabCompletion(String currentInput) {
         String[] tokens = currentInput.trim().split("\\s+");
         if (tokens.length == 0 || currentInput.trim().isEmpty()) {
-            // إصدار صوت جرس للإدخال الفارغ
-            System.out.print("\u0007");
+            System.out.print("\u0007"); // Bell sound
             return currentInput;
         }
 
         String lastToken = tokens[tokens.length - 1];
+        String[] paths = pathEnv.split(":");
 
-        // البحث عن الأوامر التي تبدأ بالنص المدخل
-        List<String> matches = new ArrayList<>();
+        // استخدام Set لإزالة التكرارات
+        Set<String> matchesSet = new LinkedHashSet<>();
+
+        // البحث في الأوامر المدمجة
         for (String cmd : SHELL_COMMANDS) {
             if (cmd.startsWith(lastToken)) {
-                matches.add(cmd);
+                matchesSet.add(cmd);
             }
         }
 
-        // إذا كان هناك تطابق واحد فقط، أكمل الأمر
+        // البحث في ملفات PATH
+        for (String path : paths) {
+            File dir = new File(path);
+            if (dir.exists() && dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file.getName().startsWith(lastToken)) {
+                            matchesSet.add(file.getName());
+                        }
+                    }
+                }
+            }
+        }
+
+        List<String> matches = new ArrayList<>(matchesSet);
+
+        // إكمال مباشر لو فيه تطابق واحد
         if (matches.size() == 1) {
             String completion = matches.get(0);
             String prefix = "";
-            if (currentInput.lastIndexOf(lastToken) > 0) {
-                prefix = currentInput.substring(0, currentInput.lastIndexOf(lastToken));
+            int lastTokenIndex = currentInput.lastIndexOf(lastToken);
+            if (lastTokenIndex > 0) {
+                prefix = currentInput.substring(0, lastTokenIndex);
+                if (!prefix.endsWith(" ")) prefix += " ";
             }
             return prefix + completion + " ";
         }
-        // إذا كان هناك عدة تطابقات، اعرضها
-        else if (matches.size() > 1) {
-            System.out.println();
-            System.out.print("الخيارات المتاحة: ");
-            for (String match : matches) {
-                System.out.print(match + "  ");
-            }
-            System.out.println();
-            System.out.print("$ " + currentInput);
-        }
-        // إذا لم يوجد أي تطابق، أصدر صوت جرس تحذيري
+
+        // عرض الخيارات لو فيه أكتر من تطابق
+//        else if (matches.size() > 1) {
+//            System.out.println();
+//            System.out.println("الخيارات المتاحة:");
+//            for (String match : matches) {
+//                System.out.print(match + "  ");
+//            }
+//            System.out.println();
+//            System.out.print("$ " + currentInput); // إعادة عرض السطر
+//        }
         else {
             System.out.print("\u0007"); // Bell sound
         }
 
         return currentInput;
     }
+
 
     private static void parseCommand(String input) {
         try {
@@ -296,7 +318,7 @@ public class Main {
     }
 
     private static Optional<Path> findExecutableInPath(String command) {
-        String pathEnv = System.getenv("PATH");
+
         if (pathEnv == null) return Optional.empty();
 
         String[] paths = pathEnv.split(":");
