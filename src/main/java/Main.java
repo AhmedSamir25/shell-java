@@ -5,11 +5,12 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class Main {
-
     private static Path currentDir;
     private static final String[] SHELL_COMMANDS = { "echo", "exit", "type", "pwd", "cd", "history" };
     private static boolean running = true;
     static String pathEnv = System.getenv("PATH");
+    private static final List<String> commandHistory = new ArrayList<>();
+
     public static void main(String[] args) throws Exception {
         currentDir = Paths.get("").toAbsolutePath();
 
@@ -161,6 +162,8 @@ public class Main {
 
     private static void parseCommand(String input) {
         try {
+            commandHistory.add(input);
+            
             ExtractResult result = extractStreams(tokenize(input));
             List<String> partsList = result.commands();
             Streams streams = result.streams();
@@ -218,6 +221,11 @@ public class Main {
 
             if (command.equals("cat")) {
                 handleCatCommand(arguments, printer);
+                return;
+            }
+
+            if (command.equals("history")) {
+                handleHistoryCommand(printer);
                 return;
             }
 
@@ -553,6 +561,14 @@ public class Main {
             }
         } else if (command.equals("cat")) {
             handleCatCommand(arguments, printer);
+        } else if (command.equals("history")) {
+            handleHistoryCommand(printer);
+        }
+    }
+
+    private static void handleHistoryCommand(Printer printer) {
+        for (int i = 0; i < commandHistory.size(); i++) {
+            printer.out.printf("%5d  %s%n", i + 1, commandHistory.get(i));
         }
     }
 
