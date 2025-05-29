@@ -39,6 +39,7 @@ public class Main {
                     } else if (c == '\t') {
                         String completed = handleTabCompletion(tempString);
                         if (!completed.equals(tempString)) {
+                            // مسح السطر الحالي وإعادة كتابة النص المكتمل
                             System.out.print("\r$ " + completed);
                             tempString = completed;
                         }
@@ -47,13 +48,13 @@ public class Main {
                             System.out.print("\b \b");
                             tempString = tempString.substring(0, tempString.length() - 1);
                         }
-                    } else if (c >= 32 && c <= 126) {
+                    } else if (c >= 32 && c <= 126) { // الأحرف المرئية فقط
                         System.out.print(c);
                         tempString += c;
-                    } else if (c == 3) {
+                    } else if (c == 3) { // Ctrl+C
                         System.out.println();
                         break;
-                    } else if (c == 4) {
+                    } else if (c == 4) { // Ctrl+D
                         running = false;
                         break;
                     }
@@ -63,7 +64,7 @@ public class Main {
         } catch (Exception e) {
             System.err.println("خطأ في تهيئة Terminal: " + e.getMessage());
         } finally {
-
+            // إعادة تعيين Terminal إلى الوضع العادي
             try {
                 ProcessBuilder resetBuilder = new ProcessBuilder(
                         "/bin/sh", "-c", "stty echo icanon < /dev/tty");
@@ -71,7 +72,7 @@ public class Main {
                 Process resetProcess = resetBuilder.start();
                 resetProcess.waitFor();
             } catch (Exception e) {
-
+                // تجاهل الأخطاء عند إعادة التعيين
             }
         }
     }
@@ -79,10 +80,14 @@ public class Main {
     private static String handleTabCompletion(String currentInput) {
         String[] tokens = currentInput.trim().split("\\s+");
         if (tokens.length == 0 || currentInput.trim().isEmpty()) {
+            // إصدار صوت جرس للإدخال الفارغ
+            System.out.print("\u0007");
             return currentInput;
         }
 
         String lastToken = tokens[tokens.length - 1];
+
+        // البحث عن الأوامر التي تبدأ بالنص المدخل
         List<String> matches = new ArrayList<>();
         for (String cmd : SHELL_COMMANDS) {
             if (cmd.startsWith(lastToken)) {
@@ -90,6 +95,7 @@ public class Main {
             }
         }
 
+        // إذا كان هناك تطابق واحد فقط، أكمل الأمر
         if (matches.size() == 1) {
             String completion = matches.get(0);
             String prefix = "";
@@ -99,15 +105,19 @@ public class Main {
             return prefix + completion + " ";
         }
         // إذا كان هناك عدة تطابقات، اعرضها
-//        else if (matches.size() > 1) {
-//            System.out.println();
-//            System.out.print("الخيارات المتاحة: ");
-//            for (String match : matches) {
-//                System.out.print(match + "  ");
-//            }
-//            System.out.println();
-//            System.out.print("$ " + currentInput);
-//        }
+        else if (matches.size() > 1) {
+            System.out.println();
+            System.out.print("الخيارات المتاحة: ");
+            for (String match : matches) {
+                System.out.print(match + "  ");
+            }
+            System.out.println();
+            System.out.print("$ " + currentInput);
+        }
+        // إذا لم يوجد أي تطابق، أصدر صوت جرس تحذيري
+        else {
+            System.out.print("\u0007"); // Bell sound
+        }
 
         return currentInput;
     }
