@@ -27,7 +27,7 @@ public class Main {
             while (running) {
                 String tempString = "";
                 System.out.print("$ ");
-                historyIndex = -1;  // إعادة تعيين مؤشر التاريخ
+                historyIndex = -1;  
 
                 while (true) {
                     char c = (char) reader.read();
